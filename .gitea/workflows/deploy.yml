@@ -1,0 +1,59 @@
+name: Deploy arabot with Docker Compose
+
+on:
+  push:
+    branches:
+      - main
+      - development
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. دریافت کد از ریپوی arabot
+      # چون ریپو private هست، نیاز به token داریم.
+      # token را باید در Secrets پروژه Gitea خود ذخیره کنی (مثلا با نام GITEA_TOKEN).
+      - name: Checkout arabot code
+        uses: actions/checkout@v4
+        with:
+          repository: mohsen/arabot
+          # اگر Gitea Actions token داری، از آن استفاده کن. در غیر این صورت،
+          # Personal Access Token با دسترسی repo کافی است.
+          token: ${{ secrets.GITEA_TOKEN }}
+          # branch فعلی که push شده
+          ref: ${{ gitea.ref_name }}
+          # fetch-depth: 1 چون فقط آخرین نسخه کد را لازم داریم
+          fetch-depth: 1
+
+      # 2. اجرای Docker Compose
+      # این step فرض می‌کند که docker-compose.yml در ریشه کد checkout شده قرار دارد.
+      # اگر docker-compose.yml در یک پوشه دیگر (مثل ./deploy/) است، باید مسیر را اینجا تغییر دهی.
+      - name: Set up Docker Compose and deploy
+        shell: bash
+        run: |
+          # این متغیرهای Gitea Actions را برای دریافت نام branch استفاده می‌کنیم
+          BRANCH="${GITEA_REF_NAME:-${GITHUB_REF_NAME:-}}"
+          if [ -z "$BRANCH" ]; then
+            # fallback برای زمانی که متغیرهای بالا نباشند
+            BRANCH="$(echo "${GITEA_REF}" | sed 's#refs/heads/##')"
+          fi
+
+          echo ">>> Deploying branch: $BRANCH"
+          echo ">>> Running in workspace: $(pwd)" # نمایش مسیر فعلی
+
+          # چک کردن وجود docker-compose.yml
+          if [ ! -f "./docker-compose.yml" ]; then
+            echo "ERROR: docker-compose.yml not found in the root of the repository."
+            exit 1
+          fi
+
+          echo ">>> Stopping existing containers (if any)..."
+          # از docker-compose (پلتفرم قدیمی) استفاده می‌کنیم
+          docker-compose down -v || true
+
+          echo ">>> Starting new containers..."
+          # --build برای اطمینان از build شدن image ها در صورت تغییر Dockerfile
+          docker-compose up -d --build
+
+          echo ">>> Deployment finished successfully for branch $BRANCH."
