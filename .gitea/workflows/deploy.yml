@@ -14,31 +14,32 @@ jobs:
         shell: bash
         run: |
           set -e
-          
-          ssh -p 9011 root@87.248.139.251
 
-          BRANCH="${{ gitea.ref_name }}"
-          TARGET="/root/taskbot/${BRANCH}"
-          REPO_URL="http://git.archiq.ir/mohsen/arabot.git"
-          
-          mkdir -p /root/taskbot
+          ssh -p 9011 -o StrictHostKeyChecking=no root@87.248.139.251 bash -s << 'EOF'
+            set -e
+            BRANCH="${{ gitea.ref_name }}"
+            TARGET="/root/taskbot/${BRANCH}"
+            REPO_URL="http://git.archiq.ir/mohsen/arabot.git"
+            
+            mkdir -p /root/taskbot
 
-          git config --global credential.helper store
-          echo "http://${{ secrets.USERNAME }}:${{ secrets.TOKEN }}@git.archiq.ir" > ~/.git-credentials
-          chmod 600 ~/.git-credentials
+            git config --global credential.helper store
+            echo "http://${{ secrets.USERNAME }}:${{ secrets.TOKEN }}@git.archiq.ir" > ~/.git-credentials
+            chmod 600 ~/.git-credentials
 
-          if [ ! -d "$TARGET/.git" ]; then
-            echo "Cloning repository..."
-            git clone --branch "$BRANCH" --single-branch "$REPO_URL" "$TARGET"
-          else
-            echo "Updating existing repository..."
+            if [ ! -d "$TARGET/.git" ]; then
+              echo "Cloning repository on server..."
+              git clone --branch "$BRANCH" --single-branch "$REPO_URL" "$TARGET"
+            else
+              echo "Updating existing repository on server..."
+              cd "$TARGET"
+              git fetch --prune origin
+              git checkout "$BRANCH"
+              git pull --ff-only origin "$BRANCH"
+            fi
+
             cd "$TARGET"
-            git fetch --prune origin
-            git checkout "$BRANCH"
-            git pull --ff-only origin "$BRANCH"
-          fi
-
-          cd "$TARGET"
-          echo "Deploying with Docker Compose..."
-          docker-compose down -v || true
-          docker-compose up -d --build
+            echo "Deploying with Docker Compose on server..."
+            docker-compose down -v || true
+            docker-compose up -d --build
+          EOF
