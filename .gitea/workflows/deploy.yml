@@ -9,13 +9,14 @@ on:
 jobs:
   deploy:
     runs-on: self-hosted
+
     steps:
       - name: Checkout on server and deploy
         shell: bash
         run: |
-          set -e
+          set -euo pipefail
 
-          REPO_URL="http://git.archiq.ir/mohsen/arabot.git"
+          REPO_URL="https://${{ secrets.USERNAME }}:${{ secrets.TOKEN }}@git.archiq.ir/mohsen/arabot.git"
           BRANCH="${GITEA_REF_NAME:-${{ gitea.ref_name }}}"
           TARGET="/root/taskbot/${BRANCH}"
 
@@ -26,6 +27,7 @@ jobs:
             git clone --branch "$BRANCH" --single-branch "$REPO_URL" "$TARGET"
           else
             cd "$TARGET"
+            git remote set-url origin "$REPO_URL"
             git fetch --prune origin
             git checkout "$BRANCH"
             git pull --ff-only origin "$BRANCH"
