@@ -20,23 +20,14 @@ jobs:
             BRANCH="${{ gitea.ref_name }}"
             TARGET="/root/taskbot/${BRANCH}"
             REPO_URL="http://git.archiq.ir/mohsen/arabot.git"
-            
+
             mkdir -p /root/taskbot
 
-            git config --global credential.helper store
-            echo "http://${{ secrets.USERNAME }}:${{ secrets.TOKEN }}@git.archiq.ir" > ~/.git-credentials
-            chmod 600 ~/.git-credentials
+            echo "Removing $TARGET for fresh deploy..."
+            rm -rf "$TARGET"
 
-            if [ ! -d "$TARGET/.git" ]; then
-              echo "Cloning repository on server..."
-              git clone --branch "$BRANCH" --single-branch "$REPO_URL" "$TARGET"
-            else
-              echo "Updating existing repository on server..."
-              cd "$TARGET"
-              git fetch --prune origin
-              git checkout "$BRANCH"
-              git pull --ff-only origin "$BRANCH"
-            fi
+            echo "Cloning repository fresh..."
+            git clone --branch "$BRANCH" --single-branch "$REPO_URL" "$TARGET"
 
             cd "$TARGET"
             echo "Deploying with Docker Compose on server..."
