@@ -7,7 +7,7 @@ services:
       dockerfile: Dockerfile
     container_name: taskbot_dev
     restart: always
-    env_file:
+    env_file: #test
       - .env
     volumes:
       - /root/taskbot/states/:/app/persistence/states
