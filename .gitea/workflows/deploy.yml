@@ -9,31 +9,39 @@ on:
 jobs:
   deploy:
     runs-on: self-hosted
-
     steps:
       - name: Checkout on server and deploy
         shell: bash
         run: |
-          set -euo pipefail
-
-          REPO_URL="http://${{ secrets.USERNAME }}:${{ secrets.TOKEN }}@git.archiq.ir/mohsen/arabot.git"
-          BRANCH="${GITEA_REF_NAME:-${{ gitea.ref_name }}}"
+          set -e
+          
+          # تنظیمات اولیه
+          BRANCH="${{ gitea.ref_name }}"
           TARGET="/root/taskbot/${BRANCH}"
-
+          REPO_URL="http://git.archiq.ir/mohsen/arabot.git"
+          
+          # ایجاد دایرکتوری مقصد
           mkdir -p /root/taskbot
 
+          # تنظیم اعتبارنامه برای این مخزن (بدون نمایش توکن در URL)
+          git config --global credential.helper store
+          echo "http://${{ secrets.USERNAME }}:${{ secrets.TOKEN }}@git.archiq.ir" > ~/.git-credentials
+          chmod 600 ~/.git-credentials
+
+          # عملیات کلون یا آپدیت
           if [ ! -d "$TARGET/.git" ]; then
-            rm -rf "$TARGET"
+            echo "Cloning repository..."
             git clone --branch "$BRANCH" --single-branch "$REPO_URL" "$TARGET"
           else
+            echo "Updating existing repository..."
             cd "$TARGET"
-            git remote set-url origin "$REPO_URL"
             git fetch --prune origin
             git checkout "$BRANCH"
             git pull --ff-only origin "$BRANCH"
           fi
 
+          # دیپلوی با داکر کامپوز
           cd "$TARGET"
-
+          echo "Deploying with Docker Compose..."
           docker-compose down -v || true
           docker-compose up -d --build
