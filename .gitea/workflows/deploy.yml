@@ -15,20 +15,18 @@ jobs:
         run: |
           set -e
           
-          # تنظیمات اولیه
+          ssh -p 9011 root@87.248.139.251
+
           BRANCH="${{ gitea.ref_name }}"
           TARGET="/root/taskbot/${BRANCH}"
           REPO_URL="http://git.archiq.ir/mohsen/arabot.git"
           
-          # ایجاد دایرکتوری مقصد
           mkdir -p /root/taskbot
 
-          # تنظیم اعتبارنامه برای این مخزن (بدون نمایش توکن در URL)
           git config --global credential.helper store
           echo "http://${{ secrets.USERNAME }}:${{ secrets.TOKEN }}@git.archiq.ir" > ~/.git-credentials
           chmod 600 ~/.git-credentials
 
-          # عملیات کلون یا آپدیت
           if [ ! -d "$TARGET/.git" ]; then
             echo "Cloning repository..."
             git clone --branch "$BRANCH" --single-branch "$REPO_URL" "$TARGET"
@@ -40,8 +38,7 @@ jobs:
             git pull --ff-only origin "$BRANCH"
           fi
 
-          # دیپلوی با داکر کامپوز
           cd "$TARGET"
           echo "Deploying with Docker Compose..."
-          /usr/bin/docker-compose down -v || true
-          /usr/bin/docker-compose up -d --build
+          docker-compose down -v || true
+          docker-compose up -d --build

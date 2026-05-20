@@ -1,12 +1,12 @@
 version: '3.8'
 
 services:
-  taskbot-dev:
+  arabot:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: taskbot_dev
-    restart: always #test
+    container_name: arabot
+    restart: always
     env_file:
       - .env
     volumes:
