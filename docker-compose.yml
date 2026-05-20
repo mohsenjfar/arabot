@@ -6,7 +6,7 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: taskbot_dev
-    restart: always
+    restart: always #test
     env_file:
       - .env
     volumes:
