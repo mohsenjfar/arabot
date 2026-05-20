@@ -1,4 +1,4 @@
---index-url https://pypi.devneeds.ir/simple/ # 
+--index-url https://mirror2.chabokan.net/pypi/simple/
 anyio==4.13.0
 APScheduler==3.11.2
 certifi==2026.2.25
