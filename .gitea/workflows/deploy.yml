@@ -1,4 +1,4 @@
-name: Deploy arabot with Docker Compose
+name: Deploy arabot with Docker Compose (Host)
 
 on:
   push:
@@ -9,19 +9,29 @@ on:
 jobs:
   deploy:
     runs-on: self-hosted
-
     steps:
-      - name: Checkout arabot code
-        uses: actions/checkout@v4
-        with:
-          repository: mohsen/arabot
-          token: ${{ secrets.GITEA_TOKEN }}
-          ref: ${{ gitea.ref_name }}
-          fetch-depth: 1
-
-      - name: Deploy with Docker Compose
+      - name: Checkout on server and deploy
         shell: bash
         run: |
-          cd /path/to/your/deploy/repo-or-folder
+          set -e
+
+          REPO_URL="https://gitea.archiq.ir/mohsen/arabot.git"
+          BRANCH="${GITEA_REF_NAME:-${{ gitea.ref_name }}}"
+          TARGET="/root/taskbot/${BRANCH}"
+
+          mkdir -p /root/taskbot
+
+          if [ ! -d "$TARGET/.git" ]; then
+            rm -rf "$TARGET"
+            git clone --branch "$BRANCH" --single-branch "$REPO_URL" "$TARGET"
+          else
+            cd "$TARGET"
+            git fetch --prune origin
+            git checkout "$BRANCH"
+            git pull --ff-only origin "$BRANCH"
+          fi
+
+          cd "$TARGET"
+
           docker-compose down -v || true
           docker-compose up -d --build
