@@ -15,7 +15,7 @@ jobs:
         run: |
           set -e
 
-          REPO_URL="https://gitea.archiq.ir/mohsen/arabot.git"
+          REPO_URL="http://git.archiq.ir/mohsen/arabot.git"
           BRANCH="${GITEA_REF_NAME:-${{ gitea.ref_name }}}"
           TARGET="/root/taskbot/${BRANCH}"
 
