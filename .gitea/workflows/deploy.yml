@@ -8,7 +8,7 @@ on:
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest
+    runs-on: docker.arvancloud.ir/python:3.11
 
     steps:
       # 1. دریافت کد از ریپوی arabot
