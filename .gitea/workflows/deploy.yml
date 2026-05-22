@@ -32,6 +32,5 @@ jobs:
             cd "$TARGET"
             echo "Deploying with Docker Compose on server..."
             docker-compose down -v || true
-            docker image prune || true
             docker-compose up -d --build
           EOF
