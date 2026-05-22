@@ -10,9 +10,12 @@ jobs:
   deploy:
     runs-on: self-hosted
     steps:
-      - name: Update code on server
+      - name: Checkout Code
         run: |
-          git pull origin ${{ gitea.ref_name }}
+          git init
+          git remote add origin https://mohsen:@git.archiq.ir/mohsen/arabot.git
+          git fetch origin ${{ github.ref_name }}
+          git checkout ${{ github.ref_name }}
 
       - name: Deploy with Docker Compose
         run: |
