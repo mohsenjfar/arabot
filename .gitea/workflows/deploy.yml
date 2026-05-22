@@ -10,8 +10,6 @@ jobs:
   deploy:
     runs-on: self-hosted
     steps:
-      - name: Check Docker
-
       - name: Checkout Code
         run: |
           git init
@@ -20,5 +18,7 @@ jobs:
           git checkout ${{ github.ref_name }}
 
       - name: Deploy with Docker Compose
+        env:
+            DOCKER_HOST: tcp://socket-proxy:2375
         run: |
-          docker compose up -d --build
+          docker-compose up -d --build
