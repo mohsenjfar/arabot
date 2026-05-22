@@ -18,10 +18,10 @@ jobs:
           ssh -p 9011 -o StrictHostKeyChecking=no root@87.248.139.251 bash -s << 'EOF'
             set -e
             BRANCH="${{ gitea.ref_name }}"
-            TARGET="/root/taskbot/${BRANCH}"
-            REPO_URL="http://git.archiq.ir/mohsen/arabot.git"
+            TARGET="/root/arabot/${BRANCH}"
+            REPO_URL="https://git.archiq.ir/mohsen/arabot.git"
 
-            mkdir -p /root/taskbot
+            mkdir -p /root/arabot
 
             echo "Removing $TARGET for fresh deploy..."
             rm -rf "$TARGET"
