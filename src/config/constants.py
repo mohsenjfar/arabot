@@ -8,7 +8,8 @@ MAX_MODEL_TOKENS = 3000
 DB_USER_NAME = os.getenv("USER_NAME")
 DB_PASSWORD = os.getenv("PASSWORD")
 DB_NAME = os.getenv("DB_NAME")
-DB_URL = f"postgresql://{DB_USER_NAME}:{DB_PASSWORD}@87.248.139.251:5432/{DB_NAME}"
+DB_HOST = os.getenv("DB_HOST")
+DB_URL = f"postgresql://{DB_USER_NAME}:{DB_PASSWORD}@{DB_HOST}:5432/{DB_NAME}"
 
 USER_INITIAL_GREETING = "سلام"
 ASSISTANT_INITIAL_GREETING = "سلام {} جان، از آشنایی باهات خیلی خوشبختم،مایلی در مورد امکانات این ربات برات توضیح بدم؟"

@@ -11,3 +11,9 @@ services:
       - .env
     volumes:
       - /root/taskbot/states/:/app/persistence/states
+    networks:
+      - external-net
+
+networks:
+  external-net:
+    external: true
