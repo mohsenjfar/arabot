@@ -11,10 +11,7 @@ jobs:
     runs-on: self-hosted
     steps:
       - name: Check Docker
-        run: |
-          which docker
-          which docker-compose
-          
+
       - name: Checkout Code
         run: |
           git init
@@ -24,4 +21,4 @@ jobs:
 
       - name: Deploy with Docker Compose
         run: |
-          docker-compose up -d --build
+          docker compose up -d --build
