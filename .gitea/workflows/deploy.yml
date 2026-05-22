@@ -10,6 +10,11 @@ jobs:
   deploy:
     runs-on: self-hosted
     steps:
+      - name: Check Docker
+        run: |
+          which docker
+          which docker-compose
+          
       - name: Checkout Code
         run: |
           git init
