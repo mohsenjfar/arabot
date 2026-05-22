@@ -1,0 +1,17 @@
+version: "3.7"
+services:
+  tasks:
+    image: tasks:latest
+    container_name: tasks
+    build:
+      context: .
+      dockerfile: Dockerfile
+    # dns:
+    #   - 8.8.8.8
+    #   - 1.1.1.1
+    network_mode: "host"
+    restart: unless-stopped
+    volumes:
+        - "./db.sqlite3:/root/db.sqlite3"
+    environment:
+      - TOKEN=
