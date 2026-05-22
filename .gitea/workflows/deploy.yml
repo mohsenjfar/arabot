@@ -1,4 +1,4 @@
-name: Deploy arabot
+name: Deploy arabot with Docker Compose (Host)
 
 on:
   push:
@@ -10,20 +10,28 @@ jobs:
   deploy:
     runs-on: self-hosted
     steps:
-      - name: Checkout Code
+      - name: Checkout on server and deploy
+        shell: bash
         run: |
-          git init
-          git remote add origin https://mohsen:@git.archiq.ir/mohsen/arabot.git
-          git fetch origin ${{ github.ref_name }}
-          git checkout ${{ github.ref_name }}
+          set -e
 
-      - name: Install Docker Compose
-        run: |
-          docker --version
-          apk add --no-cache docker-compose || apt-get update && apt-get install -y docker-compose
+          ssh -p 9011 -o StrictHostKeyChecking=no root@87.248.139.251 bash -s << 'EOF'
+            set -e
+            BRANCH="${{ gitea.ref_name }}"
+            TARGET="/root/arabot/${BRANCH}"
+            REPO_URL="https://git.archiq.ir/mohsen/arabot.git"
 
-      - name: Deploy with Docker Compose
-        env:
-            DOCKER_HOST: tcp://socket-proxy:2375
-        run: |
-          docker-compose up -d --build
+            mkdir -p /root/arabot
+
+            echo "Removing $TARGET for fresh deploy..."
+            rm -rf "$TARGET"
+
+            echo "Cloning repository fresh..."
+            git clone --branch "$BRANCH" --single-branch "$REPO_URL" "$TARGET"
+
+            cd "$TARGET"
+            echo "Deploying with Docker Compose on server..."
+            docker-compose down -v || true
+            docker images prune || true
+            docker-compose up -d --build
+          EOF
