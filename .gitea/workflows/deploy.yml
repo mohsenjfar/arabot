@@ -10,8 +10,9 @@ jobs:
   deploy:
     runs-on: self-hosted
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - name: Update code on server
+        run: |
+          git pull origin ${{ gitea.ref_name }}
 
       - name: Deploy with Docker Compose
         run: |
