@@ -1,4 +1,4 @@
-name: Deploy arabot with Docker Compose
+name: Deploy arabot
 
 on:
   push:
