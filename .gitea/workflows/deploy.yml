@@ -12,11 +12,11 @@ jobs:
     steps:
       - name: Checkout Code
         run: |
-          pwd
           git init
           git remote add origin https://mohsen:@git.archiq.ir/mohsen/arabot.git
           git fetch origin ${{ github.ref_name }}
           git checkout ${{ github.ref_name }}
+          ls
 
       - name: Deploy with Docker Compose
         env:
