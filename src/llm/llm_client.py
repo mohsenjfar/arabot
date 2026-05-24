@@ -1,12 +1,11 @@
 import os
 from tenacity import retry, stop_after_delay, wait_fixed
-from core import timezone
 import logging
 from openai import OpenAI
 import json
 from services.user_service import get_user_instructions
 from services.message_service import get_history
-
+from src.commons import timezone
 OPENAI_API_KEY = os.getenv("AI_TOKEN")
 AI_URL = os.getenv("AI_URL")
 AI_MODEL = os.getenv("AI_MODEL")
@@ -15,17 +14,20 @@ logger = logging.getLogger(__name__)
 
 client = OpenAI(base_url=AI_URL, api_key=OPENAI_API_KEY)
 
-with open("src/llm/tools.json", mode='r') as file:
+current_dir = os.path.dirname(os.path.abspath(__file__))
+
+json_file_path = os.path.join(current_dir, 'tools.json')
+with open(json_file_path, mode='r') as file:
     schema = json.load(file)
 
-with open("src/llm/instructions.md", mode='r') as file:
+md_file_path = os.path.join(current_dir, 'instructions.md')
+with open(md_file_path, mode='r') as file:
     GENERAL_INSTRUCTIONS_TEMPLATE = ''.join(file.readlines())
 
 def _general_instructions(user):
     return GENERAL_INSTRUCTIONS_TEMPLATE.format(
         get_user_instructions(user.id),
         timezone.jhuman_readable(timezone.jnow()),
-        timezone.jnow_to_str()
     )
 
 def _create_general_talk_prompt(user, limit=10):

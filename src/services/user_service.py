@@ -1,6 +1,6 @@
 import logging
-from repositories.models import User, Message
-from repositories.db import get_session
+from src.database.models import User, Message
+from src.database.db import get_session
 import json
 
 logger = logging.getLogger(__name__)

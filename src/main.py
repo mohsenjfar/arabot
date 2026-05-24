@@ -17,17 +17,17 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+logger.info(f'BASE_DIR: {BASE_DIR}')
+
 from telegram.ext import (
     Application, 
     ConversationHandler,
-    PicklePersistence, 
-    JobQueue,
+    PicklePersistence,
 )
 
-from handlers.message_handlers import check_and_send_tasks
-from handlers.conversation_handlers import main_conversation
+from app.conversation_handlers import main_conversation
 
-from config.constants import *
+from commons.constants import *
 
 END = ConversationHandler.END
 
@@ -39,27 +39,15 @@ def main() -> None:
 
     persistence = PicklePersistence(filepath=BOT_PERSISTENCE_URL, update_interval=5)
 
-    job_queue = JobQueue()
-
     application = (
         Application.builder()
         .token(BOT_TOKEN)
         .base_url(BOT_URL)
         .persistence(persistence)
-        .job_queue(job_queue)
         .read_timeout(30)
         .connect_timeout(30)
         .build()
     )
-
-    logger.info("Start job with name: task_reminder_job")
-    if not job_queue.get_jobs_by_name("task_reminder_job"):
-        job_queue.run_repeating(
-            callback=check_and_send_tasks,
-            interval=60,
-            first=10,
-            name="task_reminder_job"
-        )
 
     application.add_handler(main_conversation)
 
