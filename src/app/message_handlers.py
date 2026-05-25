@@ -46,6 +46,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception as e:
             logger.warning(e)
             await msg.edit_text(SUB_MODEL_NOT_RESPOND)
+            delete_message(message_id)
             return
 
     function_calls = [
