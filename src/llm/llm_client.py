@@ -51,7 +51,7 @@ def get_response_from_main_model(user, limit):
         tool_choice="auto"
     )
 
-@retry(stop=stop_after_delay(3), wait=wait_fixed(3))
+@retry(stop=stop_after_delay(2), wait=wait_fixed(3))
 def get_response_from_sub_model(user, limit):
     messages = _create_general_talk_prompt(user, limit=limit)
 
@@ -62,7 +62,7 @@ def get_response_from_sub_model(user, limit):
         tool_choice="auto"
     )
 
-@retry(stop=stop_after_delay(3), wait=wait_fixed(3))
+@retry(stop=stop_after_delay(2), wait=wait_fixed(3))
 def get_final_response_from_main_model(user, limit):
     messages = _create_general_talk_prompt(user, limit=limit)
 
