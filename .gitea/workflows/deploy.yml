@@ -52,11 +52,6 @@ on:
 jobs:
   deploy:
     runs-on: self-hosted
-    container:
-      image: docker.arvancloud.ir/python
-      volumes:
-        - /var/run/docker.sock:/var/run/docker.sock
-    
     steps:
       - name: Check Docker Connection
         run: |
