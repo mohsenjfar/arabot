@@ -3,8 +3,8 @@ from tenacity import retry, stop_after_delay, wait_fixed
 import logging
 from openai import OpenAI
 import json
-from services.user_service import get_user_instructions
-from services.message_service import get_history
+from src.services.user_service import get_user_instructions
+from src.services.message_service import get_history
 from src.commons import timezone
 OPENAI_API_KEY = os.getenv("AI_TOKEN")
 AI_URL = os.getenv("AI_URL")
@@ -44,9 +44,9 @@ def _create_general_talk_prompt(user, limit=10):
 def get_response_from_main_model(user, limit):
     messages = _create_general_talk_prompt(user, limit=limit)
 
-    return client.responses.create(
+    return client.chat.completions.create(
         model=MODEL,
-        input=messages,
+        messages=messages,
         tools=schema,
         tool_choice="auto"
     )
@@ -55,9 +55,9 @@ def get_response_from_main_model(user, limit):
 def get_response_from_sub_model(user, limit):
     messages = _create_general_talk_prompt(user, limit=limit)
 
-    return client.responses.create(
+    return client.chat.completions.create(
         model=SUB_MODEL,
-        input=messages,
+        messages=messages,
         tools=schema,
         tool_choice="auto"
     )
@@ -66,16 +66,16 @@ def get_response_from_sub_model(user, limit):
 def get_final_response_from_main_model(user, limit):
     messages = _create_general_talk_prompt(user, limit=limit)
 
-    return client.responses.create(
+    return client.chat.completions.create(
         model=MODEL,
-        input=messages
+        messages=messages
     )
 
 @retry(stop=stop_after_delay(2), wait=wait_fixed(3))
 def get_final_response_from_sub_model(user, limit):
     messages = _create_general_talk_prompt(user, limit=limit)
 
-    return client.responses.create(
+    return client.chat.completions.create(
         model=SUB_MODEL,
-        input=messages
+        messages=messages
     )
