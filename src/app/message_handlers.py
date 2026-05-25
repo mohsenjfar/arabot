@@ -13,8 +13,10 @@ from services.message_service import (
 from commons.constants import *
 import json
 from llm.llm_client import (
-    get_response_from_model, 
-    # get_final_response_from_model
+    get_response_from_main_model, 
+    get_response_from_sub_model,
+    # get_final_response_from_main_model,
+    # get_final_response_from_sub_model
 )
 
 logger = logging.getLogger(__name__)
@@ -34,7 +36,17 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     message_id = insert_message(user.id, 'user', user_text)
 
-    response = get_response_from_model(user, limit=10)
+    try:
+        response = get_response_from_main_model(user, limit=10)
+    except Exception as e:
+        logger.warning(e)
+        await msg.edit_text(MAIN_MODEL_NOT_RESPOND)
+        try:
+            response = get_response_from_sub_model(user, limit=10)
+        except Exception as e:
+            logger.warning(e)
+            await msg.edit_text(SUB_MODEL_NOT_RESPOND)
+            return
 
     function_calls = [
         item for item in response.output

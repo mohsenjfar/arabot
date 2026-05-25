@@ -8,7 +8,8 @@ from services.message_service import get_history
 from src.commons import timezone
 OPENAI_API_KEY = os.getenv("AI_TOKEN")
 AI_URL = os.getenv("AI_URL")
-AI_MODEL = os.getenv("AI_MODEL")
+MODEL = os.getenv("MODEL")
+SUB_MODEL = os.getenv("SUB_MODEL")
 
 logger = logging.getLogger(__name__)
 
@@ -40,21 +41,41 @@ def _create_general_talk_prompt(user, limit=10):
     return messages
 
 @retry(stop=stop_after_delay(3), wait=wait_fixed(3))
-def get_response_from_model(user, limit):
+def get_response_from_main_model(user, limit):
     messages = _create_general_talk_prompt(user, limit=limit)
 
     return client.responses.create(
-        model=AI_MODEL,
+        model=MODEL,
         input=messages,
         tools=schema,
         tool_choice="auto"
     )
 
 @retry(stop=stop_after_delay(3), wait=wait_fixed(3))
-def get_final_response_from_model(user, limit):
+def get_response_from_sub_model(user, limit):
     messages = _create_general_talk_prompt(user, limit=limit)
 
     return client.responses.create(
-        model=AI_MODEL,
+        model=SUB_MODEL,
+        input=messages,
+        tools=schema,
+        tool_choice="auto"
+    )
+
+@retry(stop=stop_after_delay(3), wait=wait_fixed(3))
+def get_final_response_from_main_model(user, limit):
+    messages = _create_general_talk_prompt(user, limit=limit)
+
+    return client.responses.create(
+        model=MODEL,
+        input=messages
+    )
+
+@retry(stop=stop_after_delay(3), wait=wait_fixed(3))
+def get_final_response_from_sub_model(user, limit):
+    messages = _create_general_talk_prompt(user, limit=limit)
+
+    return client.responses.create(
+        model=SUB_MODEL,
         input=messages
     )
