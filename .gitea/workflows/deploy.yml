@@ -12,14 +12,18 @@ jobs:
     steps:
       - name: Checkout on server and deploy
         shell: bash
+        env:
+          ACCESS_TOKEN: ${{ secrets.TOKEN }}
         run: |
           set -e
 
-          ssh -p 9011 -o StrictHostKeyChecking=no root@87.248.139.251 bash -s << 'EOF'
+          ssh -p 9011 -o StrictHostKeyChecking=no root@87.248.139.251 \
+          ACCESS_TOKEN="$ACCESS_TOKEN" bash -s << 'EOF'
             set -e
             BRANCH="${{ gitea.ref_name }}"
             TARGET="/root/arabot/${BRANCH}"
-            REPO_URL="https://git.archiq.ir/mohsen/arabot.git"
+            
+            REPO_URL="https://oauth2:${ACCESS_TOKEN}@git.aracom.ir/ARACOM/arabot.git"
 
             mkdir -p /root/arabot
 
