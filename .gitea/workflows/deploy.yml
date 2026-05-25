@@ -6,35 +6,43 @@ on:
       - main
       - development
 
+# jobs:
+#   deploy:
+#     runs-on: self-hosted
+#     steps:
+#       - name: Checkout on server and deploy
+#         shell: bash
+#         env:
+#           ACCESS_TOKEN: ${{ secrets.TOKEN }}
+#         run: |
+#           set -e
+
+#           ssh -p 9011 -o StrictHostKeyChecking=no root@87.248.139.251 \
+#           ACCESS_TOKEN="$ACCESS_TOKEN" bash -s << 'EOF'
+#             set -e
+#             BRANCH="${{ gitea.ref_name }}"
+#             TARGET="/root/arabot/${BRANCH}"
+            
+#             REPO_URL="https://oauth2:${ACCESS_TOKEN}@git.aracom.ir/ARACOM/arabot.git"
+
+#             mkdir -p /root/arabot
+
+#             echo "Removing $TARGET for fresh deploy..."
+#             rm -rf "$TARGET"
+
+#             echo "Cloning repository fresh..."
+#             git clone --branch "$BRANCH" --single-branch "$REPO_URL" "$TARGET"
+
+#             cd "$TARGET"
+#             echo "Deploying with Docker Compose on server..."
+#             docker-compose down -v || true
+#             docker-compose up -d --build
+#           EOF
 jobs:
-  deploy:
+  deploy-to-host:
     runs-on: self-hosted
     steps:
-      - name: Checkout on server and deploy
-        shell: bash
-        env:
-          ACCESS_TOKEN: ${{ secrets.TOKEN }}
+
+      - name: Deploy
         run: |
-          set -e
-
-          ssh -p 9011 -o StrictHostKeyChecking=no root@87.248.139.251 \
-          ACCESS_TOKEN="$ACCESS_TOKEN" bash -s << 'EOF'
-            set -e
-            BRANCH="${{ gitea.ref_name }}"
-            TARGET="/root/arabot/${BRANCH}"
-            
-            REPO_URL="https://oauth2:${ACCESS_TOKEN}@git.aracom.ir/ARACOM/arabot.git"
-
-            mkdir -p /root/arabot
-
-            echo "Removing $TARGET for fresh deploy..."
-            rm -rf "$TARGET"
-
-            echo "Cloning repository fresh..."
-            git clone --branch "$BRANCH" --single-branch "$REPO_URL" "$TARGET"
-
-            cd "$TARGET"
-            echo "Deploying with Docker Compose on server..."
-            docker-compose down -v || true
-            docker-compose up -d --build
-          EOF
+          docker compose -f docker-compose.prod.yml up -d --build
