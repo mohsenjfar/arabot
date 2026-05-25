@@ -53,8 +53,7 @@ jobs:
   deploy:
     runs-on: self-hosted
     container:
-      volumes:
-        - /var/run/docker.sock:/var/run/docker.sock
+      container: host
     steps:
       - name: Check Docker Connection
         run: |
