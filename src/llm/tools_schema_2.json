@@ -1,0 +1,42 @@
+[
+  {
+    "type": "function",
+    "name": "keep_in_mind",
+    "description": "Store a short note or reminder context from the user for future reference. Only call after user confirmation.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "what": {
+          "type": "string",
+          "description": "The core content of the reminder/note."
+        },
+        "user_confirmed": {
+          "type": "boolean",
+          "description": "Must be set to true only after the user has explicitly confirmed the content of the reminder/note."
+        }
+      },
+      "required": ["what", "user_confirmed"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "type": "function",
+    "name": "end_conversation",
+    "description": "End the current conversation and stop the bot flow. Only call after user confirmation.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "reason": {
+          "type": "string",
+          "description": "Optional reason for ending the conversation (e.g., 'user request complete', 'user ended conversation')."
+        },
+        "user_confirmed": {
+          "type": "boolean",
+          "description": "Must be true only after the user explicitly confirms ending the conversation."
+        }
+      },
+      "required": ["user_confirmed"],
+      "additionalProperties": false
+    }
+  }
+]

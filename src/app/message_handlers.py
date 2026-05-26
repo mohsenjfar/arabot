@@ -11,12 +11,7 @@ from services.message_service import (
 )
 from commons.constants import *
 import json
-from llm.llm_client import (
-    get_response_from_main_model, 
-    get_response_from_sub_model,
-    # get_final_response_from_main_model,
-    # get_final_response_from_sub_model
-)
+from llm.llm_client import get_response_from_model
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +31,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     message_id = insert_message(user.id, 'user', user_text)
 
     try:
-        response = get_response_from_main_model(user, limit=10)
+        response = get_response_from_model(user=user, limit=10, attempt='first', request='primary')
 
     except Exception as e:
         logger.error(f"Main model failed: {e}")
@@ -44,7 +39,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await msg.edit_text(MAIN_MODEL_NOT_RESPOND)
         
         try:
-            response = get_response_from_sub_model(user, limit=10)
+            response = get_response_from_model(user=user, limit=10, attempt='second', request='primary')
         except Exception as sub_e:
             logger.error(f"Sub model also failed: {sub_e}")
             await msg.edit_text(SUB_MODEL_NOT_RESPOND)
