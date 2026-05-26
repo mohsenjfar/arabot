@@ -9,7 +9,6 @@ from services.message_service import (
     insert_message,
     delete_message
 )
-from tenacity import RetryError
 from commons.constants import *
 import json
 from llm.llm_client import (
@@ -39,16 +38,15 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         response = get_response_from_main_model(user, limit=10)
 
-    except RetryError as e:
-        actual_error = e.last_attempt.exception()
-        logger.error(f"Main model failed after retries. Error: {actual_error}")
+    except Exception as e:
+        logger.error(f"Main model failed: {e}")
         
         await msg.edit_text(MAIN_MODEL_NOT_RESPOND)
         
         try:
             response = get_response_from_sub_model(user, limit=10)
         except Exception as sub_e:
-            logger.error(f"Sub model also failed. Error: {sub_e}")
+            logger.error(f"Sub model also failed: {sub_e}")
             await msg.edit_text(SUB_MODEL_NOT_RESPOND)
             delete_message(message_id)
             return
