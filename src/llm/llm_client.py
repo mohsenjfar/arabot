@@ -22,11 +22,11 @@ arvan_client = OpenAI(base_url=ARVAN_AI_URL, api_key=ARVAN_AI_TOKEN)
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 
-json_file_path = os.path.join(current_dir, 'tools_schema_1.json')
+json_file_path = os.path.join(current_dir, 'tools_response.json')
 with open(json_file_path, mode='r') as file:
     response_schema = json.load(file)
 
-json_file_path = os.path.join(current_dir, 'tools_schema_2.json')
+json_file_path = os.path.join(current_dir, 'tools_chat.json')
 with open(json_file_path, mode='r') as file:
     chat_schema = json.load(file)
 
@@ -57,7 +57,7 @@ def get_response_from_model(user, limit, attempt, request):
         if attempt == 'first':
             return gapgpt_client.responses.create(
                 model=GAPGPT_MODEL,
-                messages=messages,
+                input=messages,
                 tools=response_schema,
                 tool_choice="auto"
             )
@@ -75,7 +75,7 @@ def get_response_from_model(user, limit, attempt, request):
         if attempt == 'first':
             return gapgpt_client.responses.create(
                 model=GAPGPT_MODEL,
-                messages=messages
+                input=messages
             )
         
         if attempt == 'second':
