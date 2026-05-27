@@ -2,6 +2,7 @@ import logging
 from src.database.models import User, Message
 from src.database.db import get_session
 import json
+from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 
@@ -159,3 +160,62 @@ def keep_in_mind(args):
     except Exception as e:
         logger.warning(f"keep_in_mind error: {e}")
         raise
+
+
+def can_user_use_ai(user: User) -> bool:
+    now = datetime.now(timezone.utc)
+
+    if not user.is_active:
+        return False
+
+    # اگر اشتراک فعال دارد
+    if user.subscription_expires_at and user.subscription_expires_at > now:
+        return True
+
+    # اگر trial دارد
+    if user.trial_messages_left > 0:
+        return True
+
+    return False
+
+def consume_trial(user: User, db_session):
+    if user.subscription_expires_at is None or user.subscription_expires_at <= datetime.now(timezone.utc):
+        if user.trial_messages_left > 0:
+            user.trial_messages_left -= 1
+            db_session.add(user)
+            db_session.commit()
+
+def handle_user_message(db_session, user: User, text: str):
+    if not can_user_use_ai(user):
+        return {
+            "ok": False,
+            "message": "دوره رایگان شما به پایان رسیده. برای ادامه لطفاً اشتراک تهیه کنید."
+        }
+
+    # ارسال به مدل AI
+    response_text, token_usage = call_ai_model(text)
+
+    # ثبت مصرف
+    log = UsageLog(
+        user_id=user.id,
+        prompt_text=text,
+        response_text=response_text,
+        prompt_tokens=token_usage["prompt_tokens"],
+        completion_tokens=token_usage["completion_tokens"],
+        total_tokens=token_usage["total_tokens"],
+    )
+    db_session.add(log)
+
+    # کم کردن trial اگر کاربر اشتراک ندارد
+    now = datetime.now(timezone.utc)
+    if not (user.subscription_expires_at and user.subscription_expires_at > now):
+        if user.trial_messages_left > 0:
+            user.trial_messages_left -= 1
+
+    db_session.add(user)
+    db_session.commit()
+
+    return {
+        "ok": True,
+        "message": response_text
+    }
