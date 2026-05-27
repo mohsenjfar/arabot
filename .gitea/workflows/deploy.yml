@@ -1,4 +1,4 @@
-name: Deploy arabot (Temp Workspace & Clean)
+name: Deploy arabot (Direct Clone)
 
 on:
   push:
@@ -10,27 +10,23 @@ jobs:
   deploy:
     runs-on: ara
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 1
-
-      - name: Build and Run Docker Containers
+      - name: Checkout and Deploy
         shell: bash
+        env:
+          ACCESS_TOKEN: ${{ secrets.TOKEN }}
         run: |
           set -e
           
-          export COMPOSE_PROJECT_NAME="arabot-${{ gitea.ref_name }}"
+          REPO_URL="https://oauth2:${ACCESS_TOKEN}@git.aracom.ir/ARACOM/arabot.git"
+          BRANCH="${{ gitea.ref_name }}"
           
-          echo "Stopping old containers for $COMPOSE_PROJECT_NAME..."
+          echo "Cloning branch: $BRANCH"
+          git clone --depth 1 --branch "$BRANCH" "$REPO_URL" .
+
+          export COMPOSE_PROJECT_NAME="arabot-${BRANCH}"
+          
+          echo "Deploying..."
           docker-compose down -v || true
-          
-          echo "Building and starting new containers..."
           docker-compose up -d --build
 
-      - name: Cleanup Source Code
-        shell: bash
-        if: always()
-        run: |
-          echo "Cleaning up temporary source files..."
           git clean -fdx || true
