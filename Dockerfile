@@ -1,4 +1,4 @@
-FROM docker.arvancloud.ir/python:3.11
+FROM python:latest
 
 WORKDIR /app
 

@@ -10,7 +10,7 @@ services:
     env_file:
       - .env
     volumes:
-      - /root/arabot/states/:/app/persistence/states
+      - /root/states/:/app/persistence/states
     networks:
       - external-net
 
