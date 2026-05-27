@@ -1,4 +1,4 @@
-name: Deploy arabot with Docker Compose (Host)
+name: Deploy arabot (Temp Workspace & Clean)
 
 on:
   push:
@@ -8,34 +8,29 @@ on:
 
 jobs:
   deploy:
-    runs-on: self-hosted
+    runs-on: ara
     steps:
-      - name: Checkout on server and deploy
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Build and Run Docker Containers
         shell: bash
-        env:
-          ACCESS_TOKEN: ${{ secrets.TOKEN }}
         run: |
           set -e
+          
+          export COMPOSE_PROJECT_NAME="arabot-${{ gitea.ref_name }}"
+          
+          echo "Stopping old containers for $COMPOSE_PROJECT_NAME..."
+          docker-compose down -v || true
+          
+          echo "Building and starting new containers..."
+          docker-compose up -d --build
 
-          ssh -p 9011 -o StrictHostKeyChecking=no root@87.248.139.251 \
-          ACCESS_TOKEN="$ACCESS_TOKEN" bash -s << 'EOF'
-            set -e
-            BRANCH="${{ gitea.ref_name }}"
-            TARGET="/root/arabot/${BRANCH}"
-            
-            REPO_URL="https://oauth2:${ACCESS_TOKEN}@git.aracom.ir/ARACOM/arabot.git"
-
-            mkdir -p /root/arabot
-
-            echo "Removing $TARGET for fresh deploy..."
-            rm -rf "$TARGET"
-
-            echo "Cloning repository fresh..."
-            git clone --branch "$BRANCH" --single-branch "$REPO_URL" "$TARGET"
-
-            cd "$TARGET"
-            echo "Deploying with Docker Compose on server..."
-            docker-compose down -v || true
-            docker-compose up -d --build
-          EOF
-
+      - name: Cleanup Source Code
+        shell: bash
+        if: always()
+        run: |
+          echo "Cleaning up temporary source files..."
+          git clean -fdx || true
