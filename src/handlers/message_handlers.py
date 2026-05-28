@@ -47,82 +47,78 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     message_id = insert_message(user.id, 'user', user_text)
 
-    for attempt in range(3):
-        try:
 
-            response = get_response_from_model(user, limit=10)
+    try:
 
-            function_calls = [
-                item for item in response.output
-                if getattr(item, "type", None) == "function_call"
-            ]
+        response = get_response_from_model(user, limit=10)
 
-            if not function_calls:
-                final_text = getattr(response, "output_text", None)
-                if final_text:
-                    insert_message(user.id, 'assistant', final_text)
-                    await msg.edit_text(final_text)
-                else:
-                    delete_message(message_id)
-                    await msg.edit_text(AI_SERVER_ERROR)
-                return
+        function_calls = [
+            item for item in response.output
+            if getattr(item, "type", None) == "function_call"
+        ]
 
-            for item in function_calls:
-                function_name = item.name
+        if not function_calls:
+            final_text = getattr(response, "output_text", None)
+            if final_text:
+                insert_message(user.id, 'assistant', final_text)
+                await msg.edit_text(final_text)
+            else:
+                delete_message(message_id)
+                await msg.edit_text(AI_SERVER_ERROR)
+            return
 
-                args = json.loads(item.arguments)
-                args['user_id'] = user.id
+        for item in function_calls:
+            function_name = item.name
 
-                logger.info(args)
+            args = json.loads(item.arguments)
+            args['user_id'] = user.id
 
-                if function_name == "end_conversation":
-                    text = "مکالمه پایان یافت."
-                    await msg.edit_text(text)
-                    insert_message(user.id, 'assistant', text)
-                    return ConversationHandler.END
+            logger.info(args)
 
-                if function_name == "keep_in_mind":
-                    result = keep_in_mind(args)
-                    await msg.edit_text(result)
+            if function_name == "end_conversation":
+                text = "مکالمه پایان یافت."
+                await msg.edit_text(text)
+                insert_message(user.id, 'assistant', text)
+                return ConversationHandler.END
 
-                if function_name == "create_activity":
-                    result = create_activity(args)
-                    text, reply_markup  = create_task_message(result)
-                    await msg.edit_text(text=text, reply_markup=reply_markup)
-                    notification(result.get("id"))
-                    result = json.dumps(result, indent=2, ensure_ascii=False)
+            if function_name == "keep_in_mind":
+                result = keep_in_mind(args)
+                await msg.edit_text(result)
 
-                if function_name == "edit_activity":
-                    result = update_activity(args)
-                    text, reply_markup  = create_task_message(result)
-                    await msg.edit_text(text=text, reply_markup=reply_markup)
-                    notification(result.get("id"))
-                    result = json.dumps(result, indent=2, ensure_ascii=False)
+            if function_name == "create_activity":
+                result = create_activity(args)
+                text, reply_markup  = create_task_message(result)
+                await msg.edit_text(text=text, reply_markup=reply_markup)
+                notification(result.get("id"))
+                result = json.dumps(result, indent=2, ensure_ascii=False)
 
-                if function_name == "report_activities_by_time":
-                    result = report_activities_by_time(args)
-                    await msg.edit_text(text=result)
+            if function_name == "edit_activity":
+                result = update_activity(args)
+                text, reply_markup  = create_task_message(result)
+                await msg.edit_text(text=text, reply_markup=reply_markup)
+                notification(result.get("id"))
+                result = json.dumps(result, indent=2, ensure_ascii=False)
 
-                if function_name == "report_activities_by_summary":
-                    result = report_activities_by_summary(args)
-                    await msg.edit_text(text=result)
+            if function_name == "report_activities_by_time":
+                result = report_activities_by_time(args)
+                await msg.edit_text(text=result)
 
-                if function_name == "show_activity_detail":
-                    result = get_activity_details_by_summary(args)
-                    text, reply_markup = create_task_message(result)
-                    await msg.edit_text(text=text, reply_markup=reply_markup)
-                    notification(result.get('task_id'))
-                    
-                insert_message(user.id, 'assistant', result)
+            if function_name == "report_activities_by_summary":
+                result = report_activities_by_summary(args)
+                await msg.edit_text(text=result)
 
-            break
-        except Exception as e:
-            logger.warning(f"Initial model call failed or took too long: {e}")
-            await msg.edit_text(f"تلاش {attempt + 1} ناموفق بود. لطفاً کمی بیشتر صبر کنید...")
-    else:
+            if function_name == "show_activity_detail":
+                result = get_activity_details_by_summary(args)
+                text, reply_markup = create_task_message(result)
+                await msg.edit_text(text=text, reply_markup=reply_markup)
+                notification(result.get('task_id'))
+                
+            insert_message(user.id, 'assistant', result)
+
+    except Exception as e:
         delete_message(message_id)
-        await msg.edit_text("همه تلاش‌ها ناموفق بود. لطفاً دوباره امتحان کنید.")
-        return
+        logger.warning(f"Initial model call failed: {e}")
+        await msg.edit_text(f"خطا در اتصال به سرور هوش مصنوعی، لطفا مجددا تلاش کنید")
 
 def create_task_message(task_details):
     summary = task_details.get('summary')

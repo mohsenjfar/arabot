@@ -1,5 +1,4 @@
 import os
-from tenacity import retry, stop_after_delay, wait_fixed
 from core import timezone
 import logging
 from openai import OpenAI
@@ -37,22 +36,27 @@ def _create_general_talk_prompt(user, limit=10):
     })
     return messages
 
-@retry(stop=stop_after_delay(3), wait=wait_fixed(3))
 def get_response_from_model(user, limit):
     messages = _create_general_talk_prompt(user, limit=limit)
 
-    return client.responses.create(
-        model=AI_MODEL,
-        input=messages,
-        tools=schema,
-        tool_choice="auto"
-    )
+    try:
+        return client.responses.create(
+            model=AI_MODEL,
+            input=messages,
+            tools=schema,
+            tool_choice="auto"
+        )
+    except:
+        raise
 
-@retry(stop=stop_after_delay(3), wait=wait_fixed(3))
+
 def get_final_response_from_model(user, limit):
     messages = _create_general_talk_prompt(user, limit=limit)
 
-    return client.responses.create(
-        model=AI_MODEL,
-        input=messages
-    )
+    try:
+        return client.responses.create(
+            model=AI_MODEL,
+            input=messages
+        )
+    except:
+        raise
