@@ -17,13 +17,13 @@ jobs:
         run: |
           set -e
           
-          REPO_URL="https://oauth2:${ACCESS_TOKEN}@git.aracom.ir/ARACOM/arabot.git"
+          REPO_URL="https://oauth2:${ACCESS_TOKEN}@git.aracom.ir/ARACOM/ara.git"
           BRANCH="${{ gitea.ref_name }}"
           
           echo "Cloning branch: $BRANCH"
           git clone --depth 1 --branch "$BRANCH" "$REPO_URL" .
 
-          export COMPOSE_PROJECT_NAME="arabot-${BRANCH}"
+          export COMPOSE_PROJECT_NAME="arabot"
           
           echo "Deploying..."
           docker-compose down -v || true
