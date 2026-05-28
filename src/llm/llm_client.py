@@ -22,13 +22,9 @@ arvan_client = OpenAI(base_url=ARVAN_AI_URL, api_key=ARVAN_AI_TOKEN)
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 
-json_file_path = os.path.join(current_dir, 'tools_response.json')
+json_file_path = os.path.join(current_dir, 'tools.json')
 with open(json_file_path, mode='r') as file:
-    response_schema = json.load(file)
-
-json_file_path = os.path.join(current_dir, 'tools_chat.json')
-with open(json_file_path, mode='r') as file:
-    chat_schema = json.load(file)
+    schema = json.load(file)
 
 md_file_path = os.path.join(current_dir, 'instructions.md')
 with open(md_file_path, mode='r') as file:
@@ -49,37 +45,38 @@ def _create_general_talk_prompt(user, limit=10):
     })
     return messages
 
-def get_response_from_model(user, limit, attempt, request):
+def get_response_from_main_model(user, limit):
     messages = _create_general_talk_prompt(user, limit=limit)
 
-    if request == "primary":
+    return gapgpt_client.chat.completions.create(
+        model=GAPGPT_MODEL,
+        messages=messages,
+        tools=schema,
+        tool_choice="auto"
+    )
 
-        if attempt == 'first':
-            return gapgpt_client.responses.create(
-                model=GAPGPT_MODEL,
-                input=messages,
-                tools=response_schema,
-                tool_choice="auto"
-            )
+def get_final_response_from_main_model(user, limit):
+    messages = _create_general_talk_prompt(user, limit=limit)
 
-        if attempt == 'second':
-            return arvan_client.chat.completions.create(
-                model=ARVAN_MODEL,
-                messages=messages,
-                tools=chat_schema,
-                tool_choice="auto"
-            )
-        
-    if request == "final":
+    return gapgpt_client.chat.completions.create(
+        model=GAPGPT_MODEL,
+        messages=messages
+    )
 
-        if attempt == 'first':
-            return gapgpt_client.responses.create(
-                model=GAPGPT_MODEL,
-                input=messages
-            )
-        
-        if attempt == 'second':
-            return arvan_client.chat.completions.create(
-                model=ARVAN_MODEL,
-                messages=messages
-            )
+def get_response_from_sub_model(user, limit):
+    messages = _create_general_talk_prompt(user, limit=limit)
+
+    return arvan_client.chat.completions.create(
+        model=ARVAN_MODEL,
+        messages=messages,
+        tools=schema,
+        tool_choice="auto"
+    )
+
+def get_final_response_from_sub_model(user, limit):
+    messages = _create_general_talk_prompt(user, limit=limit)
+
+    return arvan_client.chat.completions.create(
+        model=ARVAN_MODEL,
+        messages=messages
+    )
