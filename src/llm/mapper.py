@@ -1,0 +1,64 @@
+# src/tasks/mapper.py
+
+from .schemas import TaskResponse, TaskCreate, TaskUpdate
+from core import timezone
+
+
+def to_task_response(task) -> TaskResponse:
+    return TaskResponse(
+        id=str(task.id),
+        user_id=task.user_id,
+        summary=task.summary,
+        dtstart=timezone.human_readable(task.dtstart) if task.dtstart else "",
+        dtend=timezone.human_readable(task.dtend) if task.dtend else "",
+        next_date=timezone.human_readable(task.next_date) if task.next_date else "",
+        description=task.description,
+        completed=task.completed,
+        is_recurrent=task.is_recurrent,
+        rrule_human=task.rrule_human
+    )
+
+def to_task_orm_create(args) -> TaskCreate:
+    return TaskCreate(
+        user_id=args.get('user_id'),
+        summary=args.get('summary'),
+        dtstart=args.get('dtstart'),
+        next_date=args.get('dtstart'),
+        description=args.get('description'),
+        is_recurrent=args.get('is_recurrent'),
+        rrule=args.get('rrule'),
+        rrule_human=args.get('rrule_human'),
+    )
+
+def to_task_orm_update(kwargs) -> TaskUpdate:
+
+    task_id = kwargs.get("activity_id")
+    
+    if not task_id:
+        return {"status": "error", "message": "activity_id is required"}
+
+    values_to_update = {"task_id": task_id}
+
+    if "user_id" in kwargs:
+        values_to_update["user_id"] = kwargs["user_id"]
+
+    if "new_summary" in kwargs:
+        values_to_update["summary"] = kwargs["new_summary"]
+
+    if "new_dtstart" in kwargs:
+        values_to_update["dtstart"] = kwargs["new_dtstart"]
+        values_to_update["next_date"] = kwargs["new_dtstart"]
+
+    if "new_description" in kwargs:
+        values_to_update["description"] = kwargs["new_description"]
+
+    if "make_recurrent" in kwargs:
+        values_to_update["is_recurrent"] = kwargs["make_recurrent"]
+
+    if "new_rrule" in kwargs:
+        values_to_update["rrule"] = kwargs["new_rrule"]
+
+    if "new_rrule_human" in kwargs:
+        values_to_update["rrule_human"] = kwargs["new_rrule_human"]
+
+    return TaskUpdate(**values_to_update)

@@ -1,6 +1,6 @@
 import logging
-from src.database.models import User, Message
-from src.database.db import get_session
+from repositories.models import User, Message
+from repositories.db import get_session
 import json
 from datetime import datetime, timezone
 

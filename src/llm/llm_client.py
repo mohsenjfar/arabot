@@ -1,39 +1,31 @@
 import os
+from tenacity import retry, stop_after_delay, wait_fixed
+from core import timezone
 import logging
 from openai import OpenAI
 import json
-from src.services.user_service import get_user_instructions
-from src.services.message_service import get_history
-from src.commons import timezone
+from services.user_service import get_user_instructions
+from services.message_service import get_history
 
-GAPGPT_AI_URL = os.getenv("GAPGPT_AI_URL")
-GAPGPT_MODEL = os.getenv("GAPGPT_MODEL")
-GAPGPT_AI_TOKEN = os.getenv("GAPGPT_AI_TOKEN")
-
-ARVAN_AI_URL = os.getenv("ARVAN_AI_URL")
-ARVAN_MODEL = os.getenv("ARVAN_MODEL")
-ARVAN_SUB_MODEL = os.getenv("ARVAN_SUB_MODEL")
-ARVAN_AI_TOKEN = os.getenv("ARVAN_AI_TOKEN")
+OPENAI_API_KEY = os.getenv("AI_TOKEN")
+AI_URL = os.getenv("AI_URL")
+AI_MODEL = os.getenv("AI_MODEL")
 
 logger = logging.getLogger(__name__)
 
-gapgpt_client = OpenAI(base_url=GAPGPT_AI_URL, api_key=GAPGPT_AI_TOKEN)
-arvan_client = OpenAI(base_url=ARVAN_AI_URL, api_key=ARVAN_AI_TOKEN)
+client = OpenAI(base_url=AI_URL, api_key=OPENAI_API_KEY)
 
-current_dir = os.path.dirname(os.path.abspath(__file__))
-
-json_file_path = os.path.join(current_dir, 'tools.json')
-with open(json_file_path, mode='r') as file:
+with open("src/llm/tools.json", mode='r') as file:
     schema = json.load(file)
 
-md_file_path = os.path.join(current_dir, 'instructions.md')
-with open(md_file_path, mode='r') as file:
+with open("src/llm/instructions.md", mode='r') as file:
     GENERAL_INSTRUCTIONS_TEMPLATE = ''.join(file.readlines())
 
 def _general_instructions(user):
     return GENERAL_INSTRUCTIONS_TEMPLATE.format(
         get_user_instructions(user.id),
         timezone.jhuman_readable(timezone.jnow()),
+        timezone.jnow_to_str()
     )
 
 def _create_general_talk_prompt(user, limit=10):
@@ -45,38 +37,22 @@ def _create_general_talk_prompt(user, limit=10):
     })
     return messages
 
-def get_response_from_main_model(user, limit):
+@retry(stop=stop_after_delay(3), wait=wait_fixed(3))
+def get_response_from_model(user, limit):
     messages = _create_general_talk_prompt(user, limit=limit)
 
-    return gapgpt_client.chat.completions.create(
-        model=GAPGPT_MODEL,
-        messages=messages,
+    return client.responses.create(
+        model=AI_MODEL,
+        input=messages,
         tools=schema,
         tool_choice="auto"
     )
 
-def get_final_response_from_main_model(user, limit):
+@retry(stop=stop_after_delay(3), wait=wait_fixed(3))
+def get_final_response_from_model(user, limit):
     messages = _create_general_talk_prompt(user, limit=limit)
 
-    return gapgpt_client.chat.completions.create(
-        model=GAPGPT_MODEL,
-        messages=messages
-    )
-
-def get_response_from_sub_model(user, limit):
-    messages = _create_general_talk_prompt(user, limit=limit)
-
-    return arvan_client.chat.completions.create(
-        model=ARVAN_MODEL,
-        messages=messages,
-        tools=schema,
-        tool_choice="auto"
-    )
-
-def get_final_response_from_sub_model(user, limit):
-    messages = _create_general_talk_prompt(user, limit=limit)
-
-    return arvan_client.chat.completions.create(
-        model=ARVAN_MODEL,
-        messages=messages
+    return client.responses.create(
+        model=AI_MODEL,
+        input=messages
     )

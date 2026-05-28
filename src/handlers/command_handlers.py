@@ -12,7 +12,7 @@ from services.user_service import (
     is_first_time_user
 )
 from services.message_service import insert_message
-from commons.constants import *
+from config.constants import *
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +22,10 @@ async def start_command_handler(update: Update, context: ContextTypes.DEFAULT_TY
 
     if not user_exists(user.id):
         insert_user(user.id, user.first_name)
+
+    if not user_allowed(user.id):
+        await update.message.reply_text(USER_NOT_ALLOWED)
+        return ConversationHandler.END
     
     if is_first_time_user(user.id):
         insert_message(user.id, 'user', USER_INITIAL_GREETING)

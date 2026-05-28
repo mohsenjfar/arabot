@@ -1,7 +1,7 @@
 import logging
-from src.database.models import Message
-from src.database.db import get_session
-from src.commons import timezone
+from repositories.models import Message
+from repositories.db import get_session
+from core import timezone
 
 logger = logging.getLogger(__name__)
 
