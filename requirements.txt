@@ -18,4 +18,3 @@ psycopg2-binary
 pydantic==2.12.5
 pytz
 alembic
-postgresql-client
