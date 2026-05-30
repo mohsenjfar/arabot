@@ -14,7 +14,7 @@ from services.task_service import (
 )
 from services.report_service import get_activity_details_by_id
 from .message_handlers import create_task_message
-from config.constants import *
+from commons.constants import *
 
 logger = logging.getLogger(__name__)
 

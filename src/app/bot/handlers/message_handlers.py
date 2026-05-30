@@ -23,7 +23,7 @@ from services.report_service import (
     get_due_tasks
 )
 
-from config.constants import *
+from commons.constants import *
 import json
 from llm.llm_client import (
     get_response_from_model, 

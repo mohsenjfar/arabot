@@ -21,7 +21,7 @@ class User(Base):
     last_name = Column(String(100), nullable=True)
     phone_number = Column(Integer, nullable=True)
     is_active = Column(Boolean, default=True)
-    is_allowed = Column(Boolean, default=False)
+    is_allowed = Column(Boolean, default=True)
     is_subscribed = Column(Boolean, default=False)
     instructions = Column(Text, nullable=True)
 

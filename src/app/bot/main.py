@@ -27,7 +27,7 @@ from telegram.ext import (
 from handlers.message_handlers import check_and_send_tasks
 from handlers.conversation_handlers import main_conversation
 
-from config.constants import *
+from commons.constants import *
 
 END = ConversationHandler.END
 

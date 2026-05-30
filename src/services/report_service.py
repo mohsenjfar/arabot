@@ -1,8 +1,7 @@
 import logging
-from repositories.models import Task, User
-from repositories.db import get_session
-from core import timezone
-from llm.schemas import TaskResponse
+from src.persistence.models import Task, User
+from src.persistence.db import get_session
+from src.commons import timezone
 from sqlalchemy import or_
 from src.llm.mapper import to_task_response
 

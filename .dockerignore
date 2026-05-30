@@ -1,5 +1,5 @@
 venv
-alembic
+migrations
 docs
 actions
 tests
@@ -10,3 +10,4 @@ __pycache__
 .env
 docker-compose*
 .*
+.gitea

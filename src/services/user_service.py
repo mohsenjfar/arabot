@@ -1,6 +1,6 @@
 import logging
-from repositories.models import User, Message
-from repositories.db import get_session
+from src.persistence.models import User, Message
+from src.persistence.db import get_session
 import json
 from datetime import datetime, timezone
 
@@ -20,7 +20,7 @@ def user_exists(user_id):
     finally:
         session.close()
 
-def insert_user(user_id, first_name, is_active=True, is_allowed=False):
+def insert_user(user_id, first_name, is_active=True, is_allowed=True):
     try:
         session = get_session()
         user = User(

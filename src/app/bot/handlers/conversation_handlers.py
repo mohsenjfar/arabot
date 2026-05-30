@@ -25,7 +25,7 @@ from .query_handlers import (
     cancel_query_handler
 )
 
-from config.constants import *
+from commons.constants import *
 
 logger = logging.getLogger(__name__)
 

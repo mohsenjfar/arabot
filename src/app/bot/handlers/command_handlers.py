@@ -12,7 +12,7 @@ from services.user_service import (
     is_first_time_user
 )
 from services.message_service import insert_message
-from config.constants import *
+from commons.constants import *
 
 logger = logging.getLogger(__name__)
 

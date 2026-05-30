@@ -1,16 +1,25 @@
 version: '3.8'
 
 services:
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    command: ["alembic", "upgrade", "head"]
+    networks:
+      - external-net
+
   arabot:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: arabot
     restart: always
     env_file:
       - .env
     volumes:
-      - /root/states/:/app/persistence/states
+      - ${STATE_DIR}:/ara/src/persistence/states
     networks:
       - external-net
 

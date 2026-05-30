@@ -1,11 +1,11 @@
 FROM python:3.11-slim
 
-WORKDIR /app
+WORKDIR /ara
 
-COPY requirements.txt /app/requirements.txt
+COPY requirements.txt /ara/requirements.txt
 
-RUN pip install -r /app/requirements.txt
+RUN pip install -r /ara/requirements.txt
 
-COPY . /app/.
+COPY . /ara/.
 
-CMD ["python", "/app/src/main.py"]
+CMD ["python", "/ara/src/app/bot/main.py"]

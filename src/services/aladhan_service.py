@@ -1,8 +1,8 @@
 import requests
 from datetime import datetime, timedelta
 
-from database.models_sqlalchemy import Task, Parent
-from database.db import get_session
+from src.persistence.models import Task, Parent
+from src.persistence.db import get_session
 
 from commons.time_utils import TimeUtils
 from commons.constants import tz
