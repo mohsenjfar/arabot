@@ -19,6 +19,8 @@ services:
     restart: always
     env_file:
       - .env
+    environment:
+      PYTHONPATH: "/ara"
     volumes:
       - ${STATE_DIR}:/ara/src/persistence/states
     networks:
