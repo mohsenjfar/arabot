@@ -19,7 +19,6 @@ services:
     restart: always
     env_file:
       - .env
-    command: ["sh", "-lc", "sleep infinity"]
     volumes:
       - ${STATE_DIR}:/ara/src/persistence/states
     networks:
