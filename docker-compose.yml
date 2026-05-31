@@ -17,6 +17,7 @@ services:
       context: .
       dockerfile: Dockerfile
     restart: always
+    working_dir: /ara
     env_file:
       - .env
     volumes:
