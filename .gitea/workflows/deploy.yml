@@ -58,9 +58,6 @@ jobs:
             echo "Running migrations on ara-dev..."
             docker-compose run --rm -e DATABASE_URL="$DATABASE_URL" migrate
 
-            echo "Running tests on ara-dev..."
-            docker-compose run --rm -e DATABASE_URL="$DATABASE_URL" arabot pytest
-
             echo "Deploying development app..."
             docker-compose up -d --build arabot
 

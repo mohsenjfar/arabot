@@ -5,9 +5,10 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    working_dir: /ara/src/persistence
     env_file:
       - .env
-    command: ["alembic", "upgrade", "head"]
+    command: ["alembic", "-c", "alembic.ini", "upgrade", "head"]
     networks:
       - external-net
 
