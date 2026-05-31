@@ -19,8 +19,6 @@ services:
     restart: always
     env_file:
       - .env
-    environment:
-      PYTHONPATH: "/ara"
     command: ["sh", "-lc", "sleep infinity"]
     volumes:
       - ${STATE_DIR}:/ara/src/persistence/states

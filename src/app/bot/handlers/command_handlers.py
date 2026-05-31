@@ -4,15 +4,15 @@ from telegram.ext import (
     ContextTypes, 
     ConversationHandler
 )
-from services.user_service import (
+from src.services.user_service import (
     user_exists, 
     user_allowed,
     insert_user,
     activate_user,
     is_first_time_user
 )
-from services.message_service import insert_message
-from commons.constants import *
+from src.services.message_service import insert_message
+from src.commons.constants import *
 
 logger = logging.getLogger(__name__)
 

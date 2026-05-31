@@ -5,16 +5,16 @@ from telegram.ext import (
 )
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
-from services.message_service import insert_message
-from services.task_service import (
+from src.services.message_service import insert_message
+from src.services.task_service import (
     delete_activity,
     clear_activity,
     skip_activity,
     complete_activity
 )
-from services.report_service import get_activity_details_by_id
+from src.services.report_service import get_activity_details_by_id
 from .message_handlers import create_task_message
-from commons.constants import *
+from src.commons.constants import *
 
 logger = logging.getLogger(__name__)
 

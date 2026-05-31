@@ -3,8 +3,8 @@ from core import timezone
 import logging
 from openai import OpenAI
 import json
-from services.user_service import get_user_instructions
-from services.message_service import get_history
+from src.services.user_service import get_user_instructions
+from src.services.message_service import get_history
 
 OPENAI_API_KEY = os.getenv("AI_TOKEN")
 AI_URL = os.getenv("AI_URL")

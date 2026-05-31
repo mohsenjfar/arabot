@@ -5,17 +5,17 @@ from telegram.ext import (
     ConversationHandler
 )
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
-from services.user_service import keep_in_mind
-from services.message_service import (
+from src.services.user_service import keep_in_mind
+from src.services.message_service import (
     insert_message,
     delete_message
 )
-from services.task_service import (
+from src.services.task_service import (
     create_activity,
     update_activity,
     notification
 )
-from services.report_service import (
+from src.services.report_service import (
     report_activities_by_time,
     report_activities_by_summary,
     get_activity_details_by_summary,
@@ -23,9 +23,9 @@ from services.report_service import (
     get_due_tasks
 )
 
-from commons.constants import *
+from src.commons.constants import *
 import json
-from llm.llm_client import (
+from src.llm.llm_client import (
     get_response_from_model, 
     # get_final_response_from_model
 )
