@@ -8,4 +8,4 @@ RUN pip install -r /ara/requirements.txt
 
 COPY . /ara/.
 
-CMD ["python", "/ara/src/app/bot/main.py"]
+CMD ["python", "-m", "src.app.bot.main"]
