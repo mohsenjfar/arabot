@@ -27,3 +27,7 @@ services:
 networks:
   external-net:
     external: true
+
+volumes:
+  ara_data:
+    name: ara_data
