@@ -4,11 +4,11 @@ MAX_TELEGRAM_MSG = 3500
 MAX_MODEL_TOKENS = 3000
 
 USER_INITIAL_GREETING = "سلام"
-ASSISTANT_INITIAL_GREETING = "سلام {} جان، از آشنایی باهات خیلی خوشبختم،مایلی در مورد امکانات این ربات برات توضیح بدم؟"
+ASSISTANT_INITIAL_GREETING = "سلام {} عزیز، از آشنایی باهات خیلی خوشبختم،مایلی در مورد امکانات این ربات برات توضیح بدم؟"
 USER_COMEBACK_GREETING = 'سلام، من دوباره برگشتم'
-ASSISTANT_COMEBACK_GREETING = "سلام {} جان خیلی خوشحالم که دوباره میبینمت، چه کمکی از دست من بر میاد؟"
-RESTART_MESSAGE = "جانم {} جان، در خدمتم؟"
-STOP_BOT = "بسیار خوب {} جان، هر زمان که به من نیاز داشتی من اینجام، به امید دیدار"
+ASSISTANT_COMEBACK_GREETING = "سلام {} عزیز خیلی خوشحالم که دوباره میبینمت، چه کمکی از دست من بر میاد؟"
+RESTART_MESSAGE = "عزیزم {} عزیز، در خدمتم؟"
+STOP_BOT = "بسیار خوب {} عزیز، هر زمان که به من نیاز داشتی من اینجام، به امید دیدار"
 
 USER_NOT_ALLOWED = 'Access is restricted, please contact @mohsenjfar'
 
@@ -20,4 +20,4 @@ SEARCH_DATABASE = 'در حال جستجوی پایگاه داده ...'
 DATABASE_RESULTS = "مقادیر دریافتی از پایگاه داده شامل:{}"
 
 EDIT_ACTIVITY_PROMPT = "میخوام این فعالیت رو ویرایش کنم: {}"
-EDIT_ACTIVITY_RESPONSE = "بسیار خوب {} جان، چی قراره تغییر کنه؟ بهم بگو تا تغییرش بدم"
+EDIT_ACTIVITY_RESPONSE = "بسیار خوب {} عزیز، چی قراره تغییر کنه؟ بهم بگو تا تغییرش بدم"
