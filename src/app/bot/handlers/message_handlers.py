@@ -118,7 +118,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         delete_message(message_id)
         logger.warning(f"Initial model call failed: {e}")
-        await msg.edit_text(f"خطا در اتصال به سرور هوش مصنوعی، لطفا مجددا تلاش کنید")
+        await msg.edit_text(AI_SERVER_ERROR)
 
 def create_task_message(task_details):
     summary = task_details.get('summary')
