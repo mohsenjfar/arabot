@@ -36,10 +36,7 @@ jobs:
 
           if [ "$BRANCH" = "development" ]; then
             export COMPOSE_PROJECT_NAME="arabot-dev"
-            export STATE_DIR="/root/states/dev"
             export DATABASE_URL="postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/ara-dev"
-
-            mkdir -p "$STATE_DIR"
 
             echo "Refreshing test database ara-dev from ara..."
 
@@ -63,10 +60,7 @@ jobs:
 
           elif [ "$BRANCH" = "main" ]; then
             export COMPOSE_PROJECT_NAME="arabot-prod"
-            export STATE_DIR="/root/states/prod"
             export DATABASE_URL="postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/ara"
-
-            mkdir -p "$STATE_DIR"
 
             echo "Running migrations on production database ara..."
             docker-compose run --rm -e DATABASE_URL="$DATABASE_URL" migrate

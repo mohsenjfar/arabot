@@ -20,7 +20,7 @@ services:
     env_file:
       - .env
     volumes:
-      - ${STATE_DIR}:/ara/src/persistence/states
+      - ara_data:/ara/src/persistence/states
     networks:
       - external-net
 
