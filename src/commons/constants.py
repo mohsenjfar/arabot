@@ -7,7 +7,7 @@ USER_INITIAL_GREETING = "سلام"
 ASSISTANT_INITIAL_GREETING = "سلام {} عزیز، از آشنایی باهات خیلی خوشبختم،مایلی در مورد امکانات این ربات برات توضیح بدم؟"
 USER_COMEBACK_GREETING = 'سلام، من دوباره برگشتم'
 ASSISTANT_COMEBACK_GREETING = "سلام {} عزیز خیلی خوشحالم که دوباره میبینمت، چه کمکی از دست من بر میاد؟"
-RESTART_MESSAGE = "عزیزم {} عزیز، در خدمتم؟"
+RESTART_MESSAGE = "در خدمتم {} عزیز"
 STOP_BOT = "بسیار خوب {} عزیز، هر زمان که به من نیاز داشتی من اینجام، به امید دیدار"
 
 USER_NOT_ALLOWED = 'Access is restricted, please contact @mohsenjfar'
