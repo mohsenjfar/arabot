@@ -1,5 +1,5 @@
 import os
-from core import timezone
+from src.commons import timezone
 import logging
 from openai import OpenAI
 import json
