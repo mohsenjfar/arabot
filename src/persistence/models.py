@@ -17,9 +17,6 @@ from .db import Base
 class User(Base):
     __tablename__ = 'users'
     id = Column(Integer, primary_key=True, nullable=False)
-    first_name = Column(String(100), nullable=False)
-    last_name = Column(String(100), nullable=True)
-    phone_number = Column(Integer, nullable=True)
     is_active = Column(Boolean, default=True)
     is_allowed = Column(Boolean, default=True)
     is_subscribed = Column(Boolean, default=False)

@@ -23,6 +23,7 @@ with open("src/llm/instructions.md", mode='r') as file:
 def _general_instructions(user):
     return GENERAL_INSTRUCTIONS_TEMPLATE.format(
         get_user_instructions(user.id),
+        user.first_name,
         timezone.jhuman_readable(timezone.jnow()),
         timezone.jnow_to_str()
     )
