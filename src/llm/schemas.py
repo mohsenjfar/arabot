@@ -4,7 +4,7 @@ from datetime import datetime
 import logging
 import re
 
-from core import timezone
+from src.commons import timezone
 
 logger = logging.getLogger(__name__)
 
