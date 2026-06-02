@@ -53,20 +53,20 @@ jobs:
             docker exec -i "$POSTGRES_CONTAINER" psql -U "$POSTGRES_USER" -d "ara-dev"
 
             echo "Running migrations on ara-dev..."
-            docker-compose run --rm -e DATABASE_URL="$DATABASE_URL" migrate
+            docker compose run --rm -e DATABASE_URL="$DATABASE_URL" migrate
 
             echo "Deploying development app..."
-            docker-compose up -d --build arabot
+            docker compose up -d --build arabot
 
           elif [ "$BRANCH" = "main" ]; then
             export COMPOSE_PROJECT_NAME="arabot-prod"
             export DATABASE_URL="postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/ara"
 
             echo "Running migrations on production database ara..."
-            docker-compose run --rm -e DATABASE_URL="$DATABASE_URL" migrate
+            docker compose run --rm -e DATABASE_URL="$DATABASE_URL" migrate
 
             echo "Deploying production app..."
-            docker-compose up -d --build arabot
+            docker compose up -d --build arabot
 
           else
             echo "Unsupported branch: $BRANCH"
