@@ -1,53 +1,71 @@
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler, filters
 import os
+from pathlib import Path
+import sys
 
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-BOT_URL = os.getenv("BOT_URL")
+BASE_DIR = Path(__file__).resolve().parent.parent
+if BASE_DIR not in sys.path:
+    sys.path.insert(0, str(BASE_DIR))
 
-# ========== هندلر دکمه ==========
-async def button_handler(update: Update, context):
-    query = update.callback_query
-    await query.answer()  # حتماً باید باشه تا لودینگ دکمه تموم بشه
-    
-    data = query.data  # دریافت دیتای دکمه
-    
-    if data == "btn1":
-        await query.edit_message_text("✅ دکمه اول رو زدی!")
-    elif data == "btn2":
-        await query.edit_message_text("✅ دکمه دوم رو زدی!")
-    elif data == "close":
-        await query.delete_message()  # حذف پیام
+import logging
 
-# ========== هندلر /start با دکمه اینلاین ==========
-async def start(update: Update, context):
-    keyboard = [
-        [
-            InlineKeyboardButton("🔘 دکمه اول", callback_data="btn1"),
-            InlineKeyboardButton("🔘 دکمه دوم", callback_data="btn2"),
-        ],
-        [
-            InlineKeyboardButton("❌ بستن", callback_data="close"),
-        ],
-    ]
-    
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    await update.message.reply_text(
-        "روی دکمه‌ها کلیک کن:",
-        reply_markup=reply_markup
-    )
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
+logging.getLogger("apscheduler").setLevel(logging.WARNING)
+logging.basicConfig(
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    level=logging.INFO
+)
+logger = logging.getLogger(__name__)
 
-# ========== راه‌اندازی ==========
-app = (
-    Application.builder()
-    .token(BOT_TOKEN)
-    .base_url(BOT_URL)
-    .build()
+from telegram.ext import (
+    Application, 
+    ConversationHandler,
+    PicklePersistence, 
+    JobQueue,
 )
 
-app.add_handler(CommandHandler("start", start))
-app.add_handler(CallbackQueryHandler(button_handler))  # هندلر دکمه
+from .handlers.message_handlers import check_and_send_tasks
+from .handlers.conversation_handlers import main_conversation
 
-print("Bot started! Send /start")
-app.run_polling()
+from src.commons.constants import *
+
+END = ConversationHandler.END
+
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+BOT_PERSISTENCE_URL = os.getenv("BOT_PERSISTENCE_URL")
+BOT_URL = os.getenv("BOT_URL")
+
+def main() -> None:
+
+    persistence = PicklePersistence(filepath=BOT_PERSISTENCE_URL, update_interval=5)
+
+    job_queue = JobQueue()
+
+    application = (
+        Application.builder()
+        .token(BOT_TOKEN)
+        .base_url(BOT_URL)
+        .persistence(persistence)
+        .job_queue(job_queue)
+        .read_timeout(30)
+        .connect_timeout(30)
+        .build()
+    )
+
+    logger.info("Start job with name: task_reminder_job")
+    if not job_queue.get_jobs_by_name("task_reminder_job"):
+        job_queue.run_repeating(
+            callback=check_and_send_tasks,
+            interval=60,
+            first=10,
+            name="task_reminder_job"
+        )
+
+    application.add_handler(main_conversation)
+
+    logger.info("Start polling...")
+
+    application.run_polling()
+
+if __name__ == "__main__":
+    main()
