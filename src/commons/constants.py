@@ -3,7 +3,7 @@ CHAT = chr(0)
 MAX_TELEGRAM_MSG = 3500
 MAX_MODEL_TOKENS = 3000
 
-USER_INITIAL_GREETING = "سلام"
+USER_INITIAL_GREETING = "سلام، من برای اولین بار از بات استفاده میکنم، نحوه کار با بات رو بهم توضیح بده"
 ASSISTANT_INITIAL_GREETING = "سلام {} عزیز، از آشنایی باهات خیلی خوشبختم،مایلی در مورد امکانات این ربات برات توضیح بدم؟"
 USER_COMEBACK_GREETING = 'سلام، من دوباره برگشتم'
 ASSISTANT_COMEBACK_GREETING = "سلام {} عزیز خیلی خوشحالم که دوباره میبینمت، چه کمکی از دست من بر میاد؟"

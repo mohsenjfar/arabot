@@ -11,8 +11,12 @@ from src.services.user_service import (
     activate_user,
     is_first_time_user
 )
-from src.services.message_service import insert_message
+from src.services.message_service import (
+    insert_message,
+    delete_message
+)
 from src.commons.constants import *
+from src.llm.llm_client import get_final_response_from_model
 
 logger = logging.getLogger(__name__)
 
@@ -28,16 +32,20 @@ async def start_command_handler(update: Update, context: ContextTypes.DEFAULT_TY
         return ConversationHandler.END
     
     if is_first_time_user(user.id):
-        insert_message(user.id, 'user', USER_INITIAL_GREETING)
-        insert_message(user.id, 'assistant', ASSISTANT_INITIAL_GREETING.format(user.first_name))
-        await update.message.reply_text(ASSISTANT_INITIAL_GREETING.format(user.first_name))
+        message_id = insert_message(user.id, 'user', USER_INITIAL_GREETING)
+    else:
+        activate_user(user.id)
+        message_id = insert_message(user.id, 'user', USER_COMEBACK_GREETING)
+    
+    try:
+        response = get_final_response_from_model(user, 1)
+        insert_message(user.id, 'assistant', response)
+        await update.message.reply_text(response)
         return CHAT
-
-    activate_user(user.id)
-    insert_message(user.id, 'user', USER_COMEBACK_GREETING)
-    insert_message(user.id, 'assistant', ASSISTANT_COMEBACK_GREETING.format(user.first_name))
-    await update.message.reply_text(ASSISTANT_COMEBACK_GREETING.format(user.first_name))
-    return CHAT
+    except Exception as e:
+        delete_message(message_id)
+        logger.warning(e)
+        await update.message.reply_text(AI_SERVER_ERROR)
 
 async def restart_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
