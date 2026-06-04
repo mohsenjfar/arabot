@@ -8,7 +8,7 @@ on:
 
 jobs:
   deploy:
-    runs-on: ara-dev
+    runs-on: ara
     steps:
       - name: Checkout repository
         shell: bash
@@ -53,10 +53,10 @@ jobs:
             docker exec -i "$POSTGRES_CONTAINER" psql -U "$POSTGRES_USER" -d "ara-dev"
 
             echo "Running migrations on ara-dev..."
-            docker compose run --rm -e DATABASE_URL="$DATABASE_URL" migrate
+            docker compose run --rm -e DATABASE_URL="$DATABASE_URL" arabot-mig
 
             echo "Deploying development app..."
-            docker compose up -d --build arabot
+            docker compose up -d --build arabot-dev
 
           elif [ "$BRANCH" = "main" ]; then
             export COMPOSE_PROJECT_NAME="arabot-prod"
@@ -66,9 +66,11 @@ jobs:
             docker compose run --rm -e DATABASE_URL="$DATABASE_URL" migrate
 
             echo "Deploying production app..."
-            docker compose up -d --build arabot
+            docker compose up -d --build arabot-prod
 
           else
             echo "Unsupported branch: $BRANCH"
             exit 1
           fi
+
+          git clean -fdx || true

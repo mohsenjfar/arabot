@@ -1,8 +1,9 @@
 services:
-  migrate:
+  arabot-mig:
     build:
       context: .
       dockerfile: Dockerfile
+    image: arabot:mig
     working_dir: /ara/src/persistence
     env_file:
       - .env
@@ -10,10 +11,26 @@ services:
     networks:
       - external-net
 
-  arabot:
+  arabot-dev:
     build:
       context: .
       dockerfile: Dockerfile
+    image: arabot:dev
+    container_name: arabot-dev
+    restart: always
+    env_file:
+      - .env
+    volumes:
+      - ara_data:/ara/src/persistence/states
+    networks:
+      - external-net
+
+  arabot-prod:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: arabot:prod
+    container_name: arabot-prod
     restart: always
     env_file:
       - .env
