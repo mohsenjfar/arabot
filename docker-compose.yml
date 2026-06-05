@@ -13,6 +13,7 @@ services:
   arabot-dev:
     image: arabot:${IMAGE_TAG}
     restart: unless-stopped
+    container_name: arabot-dev
     volumes:
       - ara_data_dev:/ara/src/persistence/states
     environment:
@@ -32,6 +33,7 @@ services:
   arabot-prod:
     image: arabot:${IMAGE_TAG}
     restart: unless-stopped
+    container_name: arabot-prod
     volumes:
       - ara_data_prod:/ara/src/persistence/states
     environment:
