@@ -1,7 +1,7 @@
 import logging
 from src.persistence.models import Task
 from src.persistence.db import get_session
-from src.commons import timezone
+from src.core import timezone
 from dateutil.rrule import rrulestr, rruleset
 from datetime import datetime
 from src.llm.mapper import to_task_response, to_task_orm_create, to_task_orm_update

@@ -1,7 +1,7 @@
 # src/tasks/mapper.py
 
 from .schemas import TaskResponse, TaskCreate, TaskUpdate
-from src.commons import timezone
+from src.core import timezone
 
 
 def to_task_response(task) -> TaskResponse:

@@ -1,5 +1,5 @@
 import os
-from src.commons import timezone
+from src.core import timezone
 import logging
 from openai import OpenAI
 import json
@@ -53,6 +53,21 @@ def get_response_from_model(user, limit):
 
 def get_final_response_from_model(user, limit):
     messages = _create_general_talk_prompt(user, limit=limit)
+
+    try:
+        return client.responses.create(
+            model=AI_MODEL,
+            input=messages
+        )
+    except:
+        raise
+
+def get_help_response_from_model(user):
+    general_instructions = _general_instructions(user)
+    messages = [
+        {"role": "system", "content": general_instructions},
+        {"role": "user", "content": "راهنمای نحوه کار با بازو"},
+    ] 
 
     try:
         return client.responses.create(

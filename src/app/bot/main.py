@@ -24,10 +24,10 @@ from telegram.ext import (
     JobQueue,
 )
 
-from .handlers.message_handlers import check_and_send_tasks
+from .handlers.commons import check_and_send_tasks
 from .handlers.conversation_handlers import main_conversation
 
-from src.commons.constants import *
+from src.core.constants import *
 
 END = ConversationHandler.END
 

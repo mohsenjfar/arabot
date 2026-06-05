@@ -1,7 +1,7 @@
 import logging
 from src.persistence.models import Message
 from src.persistence.db import get_session
-from src.commons import timezone
+from src.core import timezone
 
 logger = logging.getLogger(__name__)
 
