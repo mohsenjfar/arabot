@@ -11,7 +11,7 @@ jobs:
     runs-on: ara
 
     env:
-      BRANCH: ${{ gitea.ref_name }}
+      BRANCH: ${{ github.ref_name }}
 
       DATABASE_URL_DEV: ${{ secrets.DATABASE_URL_DEV }}
       DATABASE_URL_PROD: ${{ secrets.DATABASE_URL_PROD }}
@@ -44,9 +44,6 @@ jobs:
           rm -rf repo
           git clone --depth 1 --branch "$BRANCH" "$REPO_URL" repo
 
-      - name: Show all env vars
-        run: env
-
       - name: Deploy
         shell: bash
         run: |
@@ -58,6 +55,7 @@ jobs:
             export BOT_TOKEN="$BOT_TOKEN_DEV"
             export AI_MODEL="$AI_MODEL_DEV"
             export BOT_PERSISTENCE_URL="$BOT_PERSISTENCE_DEV"
+            export IMAGE_TAG=dev
             SERVICE="arabot-dev"
 
           elif [ "$BRANCH" = "main" ]; then
@@ -65,6 +63,7 @@ jobs:
             export BOT_TOKEN="$BOT_TOKEN_PROD"
             export AI_MODEL="$AI_MODEL_PROD"
             export BOT_PERSISTENCE_URL="$BOT_PERSISTENCE_PROD"
+            export IMAGE_TAG=prod
             SERVICE="arabot-prod"
 
           else
@@ -74,7 +73,10 @@ jobs:
 
           echo "Deploying $SERVICE"
 
+          # run migrations
           docker compose run --rm --build arabot-mig
+
+          # start service
           docker compose up -d --build $SERVICE
 
           git clean -fdx || true
