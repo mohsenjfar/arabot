@@ -9,14 +9,12 @@ services:
     networks:
       - external-net
 
+
   arabot-dev:
-    image: arabot:dev
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: arabot:${IMAGE_TAG}
     restart: unless-stopped
     volumes:
-      - ara_data:/ara/src/persistence/states
+      - ara_data_dev:/ara/src/persistence/states
     environment:
       - DATABASE_URL
       - BOT_TOKEN
@@ -30,14 +28,12 @@ services:
     networks:
       - external-net
 
+
   arabot-prod:
-    image: arabot:prod
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: arabot:${IMAGE_TAG}
     restart: unless-stopped
     volumes:
-      - ara_data:/ara/src/persistence/states
+      - ara_data_prod:/ara/src/persistence/states
     environment:
       - DATABASE_URL
       - BOT_TOKEN
@@ -50,10 +46,13 @@ services:
       - BOT_PERSISTENCE_URL
     networks:
       - external-net
+
 
 networks:
   external-net:
     external: true
 
+
 volumes:
-  ara_data:
+  ara_data_dev:
+  ara_data_prod:

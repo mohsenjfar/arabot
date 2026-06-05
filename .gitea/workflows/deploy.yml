@@ -34,49 +34,66 @@ jobs:
       BOT_PERSISTENCE_PROD: ${{ vars.BOT_PERSISTENCE_PATH_PROD }}
 
     steps:
-      - name: Checkout repository
+
+      - name: 1️⃣ Checkout Source
         shell: bash
         run: |
           set -e
-
           REPO_URL="ssh://git@87.248.139.251:2222/ARACOM/ara.git"
 
           rm -rf repo
           git clone --depth 1 --branch "$BRANCH" "$REPO_URL" repo
 
-      - name: Deploy
+      - name: 2️⃣ Select Environment
         shell: bash
         run: |
           set -e
-          cd repo
 
           if [ "$BRANCH" = "development" ]; then
-            export DATABASE_URL="$DATABASE_URL_DEV"
-            export BOT_TOKEN="$BOT_TOKEN_DEV"
-            export AI_MODEL="$AI_MODEL_DEV"
-            export BOT_PERSISTENCE_URL="$BOT_PERSISTENCE_DEV"
-            export IMAGE_TAG=dev
-            SERVICE="arabot-dev"
+            echo "DATABASE_URL=$DATABASE_URL_DEV" >> $GITHUB_ENV
+            echo "BOT_TOKEN=$BOT_TOKEN_DEV" >> $GITHUB_ENV
+            echo "AI_MODEL=$AI_MODEL_DEV" >> $GITHUB_ENV
+            echo "BOT_PERSISTENCE_URL=$BOT_PERSISTENCE_DEV" >> $GITHUB_ENV
+            echo "IMAGE_TAG=dev" >> $GITHUB_ENV
+            echo "SERVICE=arabot-dev" >> $GITHUB_ENV
 
           elif [ "$BRANCH" = "main" ]; then
-            export DATABASE_URL="$DATABASE_URL_PROD"
-            export BOT_TOKEN="$BOT_TOKEN_PROD"
-            export AI_MODEL="$AI_MODEL_PROD"
-            export BOT_PERSISTENCE_URL="$BOT_PERSISTENCE_PROD"
-            export IMAGE_TAG=prod
-            SERVICE="arabot-prod"
+            echo "DATABASE_URL=$DATABASE_URL_PROD" >> $GITHUB_ENV
+            echo "BOT_TOKEN=$BOT_TOKEN_PROD" >> $GITHUB_ENV
+            echo "AI_MODEL=$AI_MODEL_PROD" >> $GITHUB_ENV
+            echo "BOT_PERSISTENCE_URL=$BOT_PERSISTENCE_PROD" >> $GITHUB_ENV
+            echo "IMAGE_TAG=prod" >> $GITHUB_ENV
+            echo "SERVICE=arabot-prod" >> $GITHUB_ENV
 
           else
             echo "Unsupported branch: $BRANCH"
             exit 1
           fi
 
-          echo "Deploying $SERVICE"
+      - name: 3️⃣ Build Docker Image
+        shell: bash
+        run: |
+          set -e
+          cd repo
+          docker build -t arabot:$IMAGE_TAG .
 
-          # run migrations
-          docker compose run --rm --build arabot-mig
+      - name: 4️⃣ Run Database Migrations
+        shell: bash
+        run: |
+          set -e
+          cd repo
+          docker compose run --rm arabot-mig
 
-          # start service
-          docker compose up -d --build $SERVICE
+      - name: 5️⃣ Start Application Container
+        shell: bash
+        run: |
+          set -e
+          cd repo
+          docker compose up -d $SERVICE
 
+      - name: 6️⃣ Cleanup Workspace
+        shell: bash
+        run: |
+          set -e
+          cd repo
           git clean -fdx || true
