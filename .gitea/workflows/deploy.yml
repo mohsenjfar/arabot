@@ -71,7 +71,7 @@ jobs:
 
           echo "Deploying $SERVICE"
 
-          docker compose run --rm arabot-mig
+          docker compose run --rm --build arabot-mig
           docker compose up -d --build $SERVICE
 
           git clean -fdx || true
