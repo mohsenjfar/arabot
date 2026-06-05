@@ -9,6 +9,30 @@ on:
 jobs:
   deploy:
     runs-on: ara
+
+    env:
+      BRANCH: ${{ gitea.ref_name }}
+
+      DATABASE_URL_DEV: ${{ secrets.DATABASE_URL_DEV }}
+      DATABASE_URL_PROD: ${{ secrets.DATABASE_URL_PROD }}
+
+      BOT_TOKEN_DEV: ${{ secrets.BOT_TOKEN_DEV }}
+      BOT_TOKEN_PROD: ${{ secrets.BOT_TOKEN_PROD }}
+
+      AI_TOKEN: ${{ secrets.AI_TOKEN }}
+
+      BOT_URL: ${{ vars.BOT_URL }}
+      AI_URL: ${{ vars.AI_URL }}
+
+      AI_MODEL_DEV: ${{ vars.AI_MODEL_DEV }}
+      AI_MODEL_PROD: ${{ vars.AI_MODEL_PROD }}
+
+      TIMEZONE: ${{ vars.TIMEZONE }}
+      CALENDAR: ${{ vars.CALENDAR }}
+
+      BOT_PERSISTENCE_DEV: ${{ vars.BOT_PERSISTENCE_PATH_DEV }}
+      BOT_PERSISTENCE_PROD: ${{ vars.BOT_PERSISTENCE_PATH_PROD }}
+
     steps:
       - name: Checkout repository
         shell: bash
@@ -16,61 +40,38 @@ jobs:
           set -e
 
           REPO_URL="ssh://git@87.248.139.251:2222/ARACOM/ara.git"
-          BRANCH="${{ gitea.ref_name }}"
 
           rm -rf repo
           git clone --depth 1 --branch "$BRANCH" "$REPO_URL" repo
 
       - name: Deploy
         shell: bash
-        env:
-          BRANCH: ${{ gitea.ref_name }}
-          POSTGRES_CONTAINER: postgres_db
-          POSTGRES_USER: mohsen
-          POSTGRES_HOST: db
-          POSTGRES_PORT: 5432
-          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
         run: |
           set -e
           cd repo
 
           if [ "$BRANCH" = "development" ]; then
-            export COMPOSE_PROJECT_NAME="arabot-dev"
-            export DATABASE_URL="postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/ara-dev"
-
-            echo "Refreshing test database ara-dev from ara..."
-
-            docker exec "$POSTGRES_CONTAINER" psql -U "$POSTGRES_USER" -d postgres -c "
-            SELECT pg_terminate_backend(pid)
-            FROM pg_stat_activity
-            WHERE datname = 'ara-dev' AND pid <> pg_backend_pid();
-            "
-
-            docker exec "$POSTGRES_CONTAINER" psql -U "$POSTGRES_USER" -d postgres -c "DROP DATABASE IF EXISTS \"ara-dev\";"
-            docker exec "$POSTGRES_CONTAINER" psql -U "$POSTGRES_USER" -d postgres -c "CREATE DATABASE \"ara-dev\";"
-
-            docker exec "$POSTGRES_CONTAINER" pg_dump -U "$POSTGRES_USER" -d ara | \
-            docker exec -i "$POSTGRES_CONTAINER" psql -U "$POSTGRES_USER" -d "ara-dev"
-
-            echo "Running migrations on ara-dev..."
-            docker compose run --rm -e DATABASE_URL="$DATABASE_URL" arabot-mig
-
-            echo "Deploying development app..."
-            docker compose up -d --build arabot-dev
+            export DATABASE_URL="$DATABASE_URL_DEV"
+            export BOT_TOKEN="$BOT_TOKEN_DEV"
+            export AI_MODEL="$AI_MODEL_DEV"
+            export BOT_PERSISTENCE_URL="$BOT_PERSISTENCE_DEV"
+            SERVICE="arabot-dev"
 
           elif [ "$BRANCH" = "main" ]; then
-            export COMPOSE_PROJECT_NAME="arabot-prod"
-            export DATABASE_URL="postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/ara"
-
-            echo "Running migrations on production database ara..."
-            docker compose run --rm -e DATABASE_URL="$DATABASE_URL" migrate
-
-            echo "Deploying production app..."
-            docker compose up -d --build arabot-prod
+            export DATABASE_URL="$DATABASE_URL_PROD"
+            export BOT_TOKEN="$BOT_TOKEN_PROD"
+            export AI_MODEL="$AI_MODEL_PROD"
+            export BOT_PERSISTENCE_URL="$BOT_PERSISTENCE_PROD"
+            SERVICE="arabot-prod"
 
           else
             echo "Unsupported branch: $BRANCH"
             exit 1
           fi
+
+          echo "Deploying $SERVICE"
+
+          docker compose run --rm migrate
+          docker compose up -d --build $SERVICE
 
           git clean -fdx || true
