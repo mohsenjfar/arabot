@@ -5,8 +5,6 @@ services:
       dockerfile: Dockerfile
     image: arabot:mig
     working_dir: /ara/src/persistence
-    env_file:
-      - .env
     command: ["alembic", "-c", "alembic.ini", "upgrade", "head"]
     networks:
       - external-net
@@ -18,8 +16,6 @@ services:
     image: arabot:dev
     container_name: arabot-dev
     restart: always
-    env_file:
-      - .env
     volumes:
       - ara_data:/ara/src/persistence/states
     networks:
@@ -32,8 +28,6 @@ services:
     image: arabot:prod
     container_name: arabot-prod
     restart: always
-    env_file:
-      - .env
     volumes:
       - ara_data:/ara/src/persistence/states
     networks:
