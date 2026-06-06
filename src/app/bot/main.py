@@ -27,8 +27,6 @@ from telegram.ext import (
 from .shared.commons import check_and_send_tasks
 from .handlers.conversation_handlers import main_conversation
 
-from app.bot.shared.constants import *
-
 END = ConversationHandler.END
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
