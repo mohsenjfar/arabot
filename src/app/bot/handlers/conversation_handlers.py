@@ -61,5 +61,5 @@ main_conversation = ConversationHandler(
         CommandHandler("start", restart_command_handler),
         CallbackQueryHandler(cancel_query_handler, pattern="^cancel:")
     ],
-    persistent=True
+    persistent=False
 )
