@@ -9,7 +9,7 @@ from src.services.report_service import (
     get_activity_details_by_id,
     get_due_tasks
 )
-from src.core.constants import *
+from app.bot.shared.constants import *
 
 logger = logging.getLogger(__name__)
 

@@ -13,8 +13,8 @@ from src.services.task_service import (
     complete_activity
 )
 from src.services.report_service import get_activity_details_by_id
-from .commons import create_task_message
-from src.core.constants import *
+from ..shared.commons import create_task_message
+from ..shared.constants import *
 
 logger = logging.getLogger(__name__)
 

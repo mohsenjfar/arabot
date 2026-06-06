@@ -1,9 +1,7 @@
-CHAT = chr(0)
-EDIT_ACTIVITY = chr(1)
-REPORT = chr(2)
+ACTIVITY = chr(0)
+LLM = chr(1)
 
 MAX_TELEGRAM_MSG = 3500
-MAX_MODEL_TOKENS = 3000
 
 USER_INITIAL_GREETING = "سلام {} عزیز به بازوی آرا خوش جهت مشاهده راهنمای استفاده از بازو /help رو لمس کن"
 USER_COMEBACK_GREETING = 'سلام {} عزیز خوشحالم که دوباره می بینمت'

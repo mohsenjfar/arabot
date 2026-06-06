@@ -10,7 +10,7 @@ from src.services.user_service import (
     insert_user,
     activate_user
 )
-from src.core.constants import *
+from ..shared.constants import *
 from src.llm.llm_client import get_help_response_from_model
 
 logger = logging.getLogger(__name__)
@@ -22,7 +22,7 @@ async def start_command_handler(update: Update, context: ContextTypes.DEFAULT_TY
     if not user_exists(user.id):
         insert_user(user.id, user.first_name)
         await update.message.reply_text(USER_INITIAL_GREETING.format(user.first_name))
-        return CHAT
+        return ACTIVITY
 
     if not user_allowed(user.id):
         await update.message.reply_text(USER_NOT_ALLOWED)
@@ -30,12 +30,12 @@ async def start_command_handler(update: Update, context: ContextTypes.DEFAULT_TY
     
     activate_user(user.id)
     await update.message.reply_text(USER_COMEBACK_GREETING.format(user.first_name))
-    return CHAT
+    return ACTIVITY
 
 async def restart_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     await update.message.reply_text(RESTART_MESSAGE.format(user.first_name))
-    return CHAT
+    return ACTIVITY
 
 async def help_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user

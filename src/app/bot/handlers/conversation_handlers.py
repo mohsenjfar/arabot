@@ -10,8 +10,7 @@ from telegram.ext import (
 
 from .message_handlers import (
     create_activity_message_handler,
-    edit_activity_message_handler,
-    report_message_handler
+    llm_message_handler
 )
 
 from .command_handlers import (
@@ -32,7 +31,7 @@ from .query_handlers import (
     cancel_query_handler
 )
 
-from src.core.constants import *
+from ..shared.constants import *
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +41,7 @@ main_conversation = ConversationHandler(
     name="main_conversation",
     entry_points=[CommandHandler("start", start_command_handler)],
     states={
-        CHAT: [
+        ACTIVITY: [
             CommandHandler("help", help_command_handler),
             CommandHandler("report", report_command_handler),
             CommandHandler("stop", stop_command_handler),
@@ -54,11 +53,8 @@ main_conversation = ConversationHandler(
             CallbackQueryHandler(edit_activity_query_handler, pattern="^edit:"),
             CallbackQueryHandler(clear_activity_query_handler, pattern="^clear:")
         ],
-        EDIT_ACTIVITY: [
-            MessageHandler(filters.TEXT & ~filters.COMMAND, edit_activity_message_handler),
-        ],
-        REPORT: [
-            MessageHandler(filters.TEXT & ~filters.COMMAND, report_message_handler),
+        LLM: [
+            MessageHandler(filters.TEXT & ~filters.COMMAND, llm_message_handler),
         ]
     },
     fallbacks=[

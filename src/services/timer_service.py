@@ -7,7 +7,7 @@ from telegram import Update
 from telegram.ext import ContextTypes
 
 from core.time_utils import TimeUtils
-from core.constants import tz
+from app.bot.shared.constants import tz
 timezone = TimeUtils(tz)
 
 def next_time():
