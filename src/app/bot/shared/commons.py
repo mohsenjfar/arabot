@@ -9,7 +9,6 @@ from src.services.report_service import (
     get_activity_details_by_id,
     get_due_tasks
 )
-from app.bot.shared.constants import *
 
 logger = logging.getLogger(__name__)
 
@@ -28,10 +27,7 @@ def create_task_message(task_details):
     task_id = task_details.get('id')
     buttons = [
         [
-            InlineKeyboardButton('📦',callback_data=f'resource:{task_id}'),
             InlineKeyboardButton('✔️',callback_data=f'complete:{task_id}'),
-        ],
-        [
             InlineKeyboardButton('🗑️',callback_data=f'delete:{task_id}'),
             InlineKeyboardButton('✏️',callback_data=f'edit:{task_id}'),
             InlineKeyboardButton('🧹',callback_data=f'clear:{task_id}'),
