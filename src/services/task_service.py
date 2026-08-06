@@ -49,7 +49,7 @@ def create_activity(args):
         session.commit()
         return to_task_response(task).model_dump()
     except Exception as e:
-        logger.warning(logger.warning(f"Create activity error:{e}"))
+        logger.warning(f"Create activity error:{e}")
         session.rollback()
         raise
     finally:
@@ -247,7 +247,7 @@ def update_activity(kwargs: dict):
         if not task:
             raise ValueError("Task not found")
 
-        data_validated = to_task_orm_update(kwargs).model_dump()
+        data_validated = to_task_orm_update(kwargs).model_dump(exclude_unset=True)
 
         for key, value in data_validated.items():
             setattr(task, key, value)
@@ -260,7 +260,7 @@ def update_activity(kwargs: dict):
     except Exception as e:
         session.rollback()
         logger.error(f"update_activity error: {e}")
-        return {"status": "error", "message": str(e)}
+        return {"status": "error", "message": "خطا در ویرایش فعالیت. لطفا دوباره تلاش کن."}
 
     finally:
         session.close()

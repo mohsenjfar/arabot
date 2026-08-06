@@ -2,6 +2,7 @@ from zoneinfo import ZoneInfo
 import jdatetime
 import datetime
 import os
+import re
 
 TIMEZONE = os.getenv("TIMEZONE")
 CALENDAR = os.getenv("CALENDAR")
@@ -85,6 +86,24 @@ def str_to_jdatetime(jdatetime_str: str) -> jdatetime.datetime:
 
 def str_to_utc(jdatetime_str: str) -> datetime.datetime:
     return to_utc(str_to_jdatetime(jdatetime_str))
+
+_MONTH_INDEX = {name: i + 1 for i, name in enumerate(PERSIAN_MONTH_NAMES)}
+_HUMAN_READABLE_RE = re.compile(
+    r"(\d{1,2})\s+(" + "|".join(PERSIAN_MONTH_NAMES) + r")\s+سال\s+(\d{3,4})\s+ساعت\s+(\d{1,2}):(\d{2})"
+)
+
+def human_readable_to_jdatetime(s: str) -> jdatetime.datetime:
+    """Best-effort parse of jhuman_readable()'s own output (e.g. a model echoing
+    the human-readable 'now' value instead of the required machine format)."""
+    match = _HUMAN_READABLE_RE.search(to_english_digits(s))
+    if not match:
+        raise ValueError("Not a recognized human-readable Jalali datetime")
+    day, month_name, year, hour, minute = match.groups()
+    jdt = jdatetime.datetime(int(year), _MONTH_INDEX[month_name], int(day), int(hour), int(minute))
+    return jdt.replace(tzinfo=DEFAULT_LOCAL_TZ)
+
+def human_readable_to_utc(s: str) -> datetime.datetime:
+    return to_utc(human_readable_to_jdatetime(s))
 
 def gstr_to_jdatetime(datetime_str: str) -> jdatetime.datetime:
     try:

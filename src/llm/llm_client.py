@@ -1,8 +1,11 @@
 import os
-from src.core import timezone
-import logging
-from openai import OpenAI
 import json
+import logging
+from pathlib import Path
+
+from openai import OpenAI
+
+from src.core import timezone
 from src.services.user_service import get_user_instructions
 from src.services.message_service import get_history
 
@@ -12,12 +15,14 @@ AI_MODEL = os.getenv("AI_MODEL")
 
 logger = logging.getLogger(__name__)
 
+LLM_DIR = Path(__file__).resolve().parent
+
 client = OpenAI(base_url=AI_URL, api_key=OPENAI_API_KEY)
 
-with open("src/llm/tools.json", mode='r') as file:
+with open(LLM_DIR / "tools.json", mode='r') as file:
     schema = json.load(file)
 
-with open("src/llm/instructions.md", mode='r') as file:
+with open(LLM_DIR / "instructions.md", mode='r') as file:
     GENERAL_INSTRUCTIONS_TEMPLATE = ''.join(file.readlines())
 
 def _general_instructions(user):
@@ -40,39 +45,31 @@ def _create_general_talk_prompt(user, limit=10):
 def get_response_from_model(user, limit):
     messages = _create_general_talk_prompt(user, limit=limit)
 
-    try:
-        return client.responses.create(
-            model=AI_MODEL,
-            input=messages,
-            tools=schema,
-            tool_choice="auto"
-        )
-    except:
-        raise
+    return client.chat.completions.create(
+        model=AI_MODEL,
+        messages=messages,
+        tools=schema,
+        tool_choice="auto"
+    )
 
 
 def get_final_response_from_model(user, limit):
     messages = _create_general_talk_prompt(user, limit=limit)
 
-    try:
-        return client.responses.create(
-            model=AI_MODEL,
-            input=messages
-        )
-    except:
-        raise
+    return client.chat.completions.create(
+        model=AI_MODEL,
+        messages=messages
+    )
 
 def get_help_response_from_model(user):
     general_instructions = _general_instructions(user)
     messages = [
         {"role": "system", "content": general_instructions},
         {"role": "user", "content": "راهنمای نحوه کار با بازو"},
-    ] 
+    ]
 
-    try:
-        return client.responses.create(
-            model=AI_MODEL,
-            input=messages
-        )
-    except:
-        raise
+    response = client.chat.completions.create(
+        model=AI_MODEL,
+        messages=messages
+    )
+    return response.choices[0].message.content

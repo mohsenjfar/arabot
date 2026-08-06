@@ -7,7 +7,6 @@ from sqlalchemy import (
     Text,
     ForeignKey,
     JSON,
-    FLOAT
 )
 import enum
 from sqlalchemy.orm import relationship
@@ -57,38 +56,3 @@ class Task(Base):
     notified = Column(Boolean, default=False)
 
     user = relationship('User', backref='tasks')
-
-class Resource:
-    __tablename__ = 'resources'
-    id = Column(String(100), primary_key=True, default=lambda: str(uuid4()))
-    title = Column(String(100), nullable=False)
-
-class AllocatedResource:
-    __tablename__ = 'allocated_resources'
-    id = Column(String(100), primary_key=True, default=lambda: str(uuid4()))
-    task_id = Column(String(100), ForeignKey('tasks.id'), nullable=False)
-    resource_id = Column(String(100), ForeignKey('resources.id'), nullable=False)
-    amount = Column(FLOAT, nullable=False)
-
-    task = relationship('Task', backref='allocated_resources')
-    resource = relationship('Resource', backref='allocated_resources')
-
-class UsedResource:
-    __tablename__ = 'used_resources'
-    id = Column(String(100), primary_key=True, default=lambda: str(uuid4()))
-    task_id = Column(String(100), ForeignKey('tasks.id'), nullable=False)
-    resource_id = Column(String(100), ForeignKey('resources.id'), nullable=False)
-    created_at = Column(DateTime, nullable=False)
-    amount = Column(FLOAT, nullable=False)
-
-    task = relationship('Task', backref='used_resources')
-    resource = relationship('Resource', backref='used_resources')
-
-class ResourcePrice:
-    __tablename__ = 'prices'
-    id = Column(String(100), primary_key=True, default=lambda: str(uuid4()))
-    resource_id = Column(String(100), ForeignKey('resources.id'), nullable=False)
-    created_at = Column(DateTime, nullable=False)
-    price = Column(Integer, nullable=False)
-
-    resource = relationship('Resource', backref='prices')

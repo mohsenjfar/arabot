@@ -15,15 +15,16 @@ def to_task_response(task) -> TaskResponse:
         description=task.description,
         completed=task.completed,
         is_recurrent=task.is_recurrent,
-        rrule_human=task.rrule_human
+        rrule_human=task.rrule_human if task.rrule_human else ""
     )
 
 def to_task_orm_create(args) -> TaskCreate:
+    dtstart = args.get('dtstart') or timezone.now().replace(microsecond=0, tzinfo=None)
     return TaskCreate(
         user_id=args.get('user_id'),
         summary=args.get('summary'),
-        dtstart=args.get('dtstart'),
-        next_date=args.get('dtstart'),
+        dtstart=dtstart,
+        next_date=dtstart,
         description=args.get('description'),
         is_recurrent=args.get('is_recurrent'),
         rrule=args.get('rrule'),
@@ -39,26 +40,30 @@ def to_task_orm_update(kwargs) -> TaskUpdate:
 
     values_to_update = {"task_id": task_id}
 
-    if "user_id" in kwargs:
+    # Use `.get(key) is not None` rather than `key in kwargs`: the model
+    # frequently emits the full function schema with null for fields it
+    # doesn't intend to change, and a bare `in` check would wrongly treat
+    # that as "clear this field" and overwrite it (e.g. wiping summary/dtstart).
+    if kwargs.get("user_id") is not None:
         values_to_update["user_id"] = kwargs["user_id"]
 
-    if "new_summary" in kwargs:
+    if kwargs.get("new_summary") is not None:
         values_to_update["summary"] = kwargs["new_summary"]
 
-    if "new_dtstart" in kwargs:
+    if kwargs.get("new_dtstart") is not None:
         values_to_update["dtstart"] = kwargs["new_dtstart"]
         values_to_update["next_date"] = kwargs["new_dtstart"]
 
-    if "new_description" in kwargs:
+    if kwargs.get("new_description") is not None:
         values_to_update["description"] = kwargs["new_description"]
 
-    if "make_recurrent" in kwargs:
+    if kwargs.get("make_recurrent") is not None:
         values_to_update["is_recurrent"] = kwargs["make_recurrent"]
 
-    if "new_rrule" in kwargs:
+    if kwargs.get("new_rrule") is not None:
         values_to_update["rrule"] = kwargs["new_rrule"]
 
-    if "new_rrule_human" in kwargs:
+    if kwargs.get("new_rrule_human") is not None:
         values_to_update["rrule_human"] = kwargs["new_rrule_human"]
 
     return TaskUpdate(**values_to_update)

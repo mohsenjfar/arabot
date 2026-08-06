@@ -1,8 +1,6 @@
 import logging
 from src.persistence.models import User, Message
 from src.persistence.db import get_session
-import json
-from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +22,6 @@ def insert_user(user_id, first_name, is_active=True, is_allowed=True):
     try:
         session = get_session()
         user = User(
-            first_name=first_name,
             id=user_id,
             is_active=is_active,
             is_allowed=is_allowed,
@@ -100,17 +97,6 @@ def activate_user(user_id):
     finally:
         session.close()
 
-def get_user_data(user_id):
-    try:
-        session = get_session()
-        user = session.query(User).filter_by(id=user_id).one_or_none()
-        if user:
-            return json.loads(user.data)
-    except Exception as e:
-        logger.warning(f"Fetch user data error:{e}")
-    finally:
-        session.close()
-
 def update_user_instruction(user_id, instruction):
     try:
         session = get_session()
@@ -122,19 +108,6 @@ def update_user_instruction(user_id, instruction):
         session.rollback()
         logger.warning(f"Update user instruction error:{e}")
         raise
-    finally:
-        session.close()
-
-def reset_user_data(user_id):
-    try:
-        session = get_session()
-        user = session.query(User).filter_by(id=user_id).one()
-        user.data = json.dumps({}, indent=2, ensure_ascii=False)
-        session.add(user)
-        session.commit()
-    except Exception as e:
-        session.rollback()
-        logger.warning(f"Reset user data error:{e}")
     finally:
         session.close()
 
@@ -160,62 +133,3 @@ def keep_in_mind(args):
     except Exception as e:
         logger.warning(f"keep_in_mind error: {e}")
         raise
-
-
-def can_user_use_ai(user: User) -> bool:
-    now = datetime.now(timezone.utc)
-
-    if not user.is_active:
-        return False
-
-    # اگر اشتراک فعال دارد
-    if user.subscription_expires_at and user.subscription_expires_at > now:
-        return True
-
-    # اگر trial دارد
-    if user.trial_messages_left > 0:
-        return True
-
-    return False
-
-def consume_trial(user: User, db_session):
-    if user.subscription_expires_at is None or user.subscription_expires_at <= datetime.now(timezone.utc):
-        if user.trial_messages_left > 0:
-            user.trial_messages_left -= 1
-            db_session.add(user)
-            db_session.commit()
-
-def handle_user_message(db_session, user: User, text: str):
-    if not can_user_use_ai(user):
-        return {
-            "ok": False,
-            "message": "دوره رایگان شما به پایان رسیده. برای ادامه لطفاً اشتراک تهیه کنید."
-        }
-
-    # ارسال به مدل AI
-    response_text, token_usage = call_ai_model(text)
-
-    # ثبت مصرف
-    log = UsageLog(
-        user_id=user.id,
-        prompt_text=text,
-        response_text=response_text,
-        prompt_tokens=token_usage["prompt_tokens"],
-        completion_tokens=token_usage["completion_tokens"],
-        total_tokens=token_usage["total_tokens"],
-    )
-    db_session.add(log)
-
-    # کم کردن trial اگر کاربر اشتراک ندارد
-    now = datetime.now(timezone.utc)
-    if not (user.subscription_expires_at and user.subscription_expires_at > now):
-        if user.trial_messages_left > 0:
-            user.trial_messages_left -= 1
-
-    db_session.add(user)
-    db_session.commit()
-
-    return {
-        "ok": True,
-        "message": response_text
-    }

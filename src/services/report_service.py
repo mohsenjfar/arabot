@@ -4,8 +4,30 @@ from src.persistence.db import get_session
 from src.core import timezone
 from sqlalchemy import or_
 from src.llm.mapper import to_task_response
+from src.services.task_service import create_activity, complete_activity
 
 logger = logging.getLogger(__name__)
+
+REPORT_TITLES_BY_TYPE = {
+    "today": "گزارش فعالیت‌های امروز",
+    "tomorrow": "گزارش فعالیت‌های فردا",
+    "the_day_after_tomorrow": "گزارش فعالیت‌های پس‌فردا",
+    "this_week": "گزارش فعالیت‌های این هفته",
+    "overdue_activities": "گزارش فعالیت‌های عقب‌افتاده",
+}
+
+def _create_report_activity(user_id, title, description):
+    """Reports are shown as a regular activity card (title + description)
+    instead of plain text, per product requirement. Immediately marked
+    completed so it doesn't show up as an open task, and completed tasks are
+    excluded from report queries so a report never lists itself."""
+    created = create_activity({
+        "user_id": user_id,
+        "summary": title,
+        "description": description,
+    })
+    complete_activity(created["id"])
+    return created
 
 
 def get_due_tasks():
@@ -64,7 +86,8 @@ def _get_report_by_time(user_id, dtstart, dtend):
         tasks = session.query(Task).filter(
             Task.user_id == user_id,
             Task.next_date >= dtstart,
-            Task.next_date <= dtend
+            Task.next_date <= dtend,
+            Task.completed == False
         ).order_by(Task.next_date).all()
 
         results = [{
@@ -109,23 +132,27 @@ def report_activities_by_time(args):
 
     elif report_type == "overdue_activities":
         results = get_over_due_activities(user_id)
-    
+
     if results:
-        return '\n\n'.join(['\n'.join(
+        description = '\n\n'.join(['\n'.join(
             [
                 f"عنوان فعالیت: *{result.get('summary')}*",
                 f"زمان انجام: *{result.get('next_date')}*"
             ]
         ) for result in results])
-    
-    return "فعالیتی وجود نداره"
+    else:
+        description = "فعالیتی وجود نداره"
+
+    title = REPORT_TITLES_BY_TYPE.get(report_type, "گزارش فعالیت‌ها")
+    return _create_report_activity(user_id, title, description)
 
 def _get_report_by_summary(user_id, summary):
     try:
         session = get_session()
         tasks = session.query(Task).filter(
             Task.user_id == user_id,
-            Task.summary.contains(summary)
+            Task.summary.contains(summary),
+            Task.completed == False
         ).order_by(Task.next_date).all()
         results = [{
             'task_id':task.id, 
@@ -145,13 +172,17 @@ def report_activities_by_summary(args):
     try:
         results = _get_report_by_summary(user_id, summary_keyword)
         if results:
-            return '\n\n'.join(['\n'.join(
+            description = '\n\n'.join(['\n'.join(
                 [
                     f"عنوان فعالیت: *{result.get('summary')}*",
                     f"زمان انجام: *{result.get('next_date')}*"
                 ]
             ) for result in results])
-        return "فعالیتی وجود نداره"
+        else:
+            description = "فعالیتی وجود نداره"
+
+        title = f"گزارش فعالیت‌های مرتبط با «{summary_keyword}»"
+        return _create_report_activity(user_id, title, description)
     except Exception as e:
         logger.warning(f"report_activities_by_summary error:{e}")
         raise

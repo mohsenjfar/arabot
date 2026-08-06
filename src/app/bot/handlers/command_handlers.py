@@ -1,11 +1,11 @@
 import logging
 from telegram import Update
 from telegram.ext import (
-    ContextTypes, 
+    ContextTypes,
     ConversationHandler
 )
 from src.services.user_service import (
-    user_exists, 
+    user_exists,
     user_allowed,
     insert_user,
     activate_user
@@ -22,24 +22,29 @@ async def start_command_handler(update: Update, context: ContextTypes.DEFAULT_TY
     if not user_exists(user.id):
         insert_user(user.id, user.first_name)
         await update.message.reply_text(USER_INITIAL_GREETING.format(user.first_name))
+        await update.message.delete()
         return ACTIVITY
 
     if not user_allowed(user.id):
         await update.message.reply_text(USER_NOT_ALLOWED)
+        await update.message.delete()
         return ConversationHandler.END
-    
+
     activate_user(user.id)
     await update.message.reply_text(USER_COMEBACK_GREETING.format(user.first_name))
+    await update.message.delete()
     return ACTIVITY
 
 async def restart_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     await update.message.reply_text(RESTART_MESSAGE.format(user.first_name))
+    await update.message.delete()
     return ACTIVITY
 
 async def help_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     msg = await update.message.reply_text(PROCESSING)
+    await update.message.delete()
     try:
         await msg.edit_text(get_help_response_from_model(user))
     except Exception as e:
@@ -50,9 +55,12 @@ async def help_command_handler(update: Update, context: ContextTypes.DEFAULT_TYP
 async def stop_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     await update.message.reply_text(STOP_BOT.format(user.first_name))
+    await update.message.delete()
     return ConversationHandler.END
 
 async def report_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
-    await update.message.reply_text(STOP_BOT.format(user.first_name))
-    return ConversationHandler.END
+    prompt_msg = await update.message.reply_text(REPORT_PROMPT.format(user.first_name))
+    context.user_data["prompt_message_id"] = prompt_msg.message_id
+    await update.message.delete()
+    return LLM

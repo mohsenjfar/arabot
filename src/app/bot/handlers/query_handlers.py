@@ -61,10 +61,13 @@ async def edit_activity_query_handler(update: Update, context: ContextTypes.DEFA
     query = update.callback_query
     user = update.effective_user
     task_id = query.data.split(':')[1]
+    context.user_data["task_id"] = task_id
     task = get_activity_details_by_id(task_id)
     insert_message(user.id, 'user', EDIT_ACTIVITY_PROMPT.format(task))
     insert_message(user.id, 'assistant', EDIT_ACTIVITY_RESPONSE.format(user.first_name))
-    await query.message.edit_text(EDIT_ACTIVITY_RESPONSE.format(user.first_name))
+    await query.message.edit_text(EDIT_ACTIVITY_RESPONSE.format(user.first_name), reply_markup=None)
+    context.user_data["prompt_message_id"] = query.message.message_id
+    return LLM
 
 async def cancel_query_handler(update, context):
     query = update.callback_query

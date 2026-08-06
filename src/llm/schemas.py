@@ -39,7 +39,10 @@ class TaskBase(BaseModel):
 
             if isinstance(v, str):
                 v = timezone.to_english_digits(v)
-                return timezone.str_to_utc(v)
+                try:
+                    return timezone.str_to_utc(v)
+                except ValueError:
+                    return timezone.human_readable_to_utc(v)
 
             raise ValueError("Invalid datetime format")
 
