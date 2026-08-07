@@ -34,7 +34,7 @@ def create_task_message(task_details):
         ]
     ]
     if task_details.get('is_recurrent'):
-        buttons[0].insert(2, InlineKeyboardButton('➡️',callback_data=f'skip:{task_id}'),)
+        buttons[0].insert(2, InlineKeyboardButton('✖️',callback_data=f'skip:{task_id}'),)
     return '\n'.join(lines), InlineKeyboardMarkup(buttons)
 
 async def task_details_view(update: Update, context: ContextTypes.DEFAULT_TYPE):
