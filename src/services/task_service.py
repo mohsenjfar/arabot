@@ -8,6 +8,54 @@ from src.llm.mapper import to_task_response, to_task_orm_create, to_task_orm_upd
 
 logger = logging.getLogger(__name__)
 
+# /timer has no dedicated column/flag on the row itself: a task is "a timer
+# phase" purely by virtue of its rrule being one of these two. Toggling
+# between them (see _toggle_timer_phase) is what keeps a single row cycling
+# between work and break instead of needing a second, linked row.
+TIMER_WORK = {
+    "rrule": "FREQ=MINUTELY;INTERVAL=25",
+    "summary": "💻 وقت شروع مجدد کاره",
+    "rrule_human": "این فاز ۲۵ دقیقه‌ست",
+}
+TIMER_BREAK = {
+    "rrule": "FREQ=MINUTELY;INTERVAL=5",
+    "summary": "🍹 وقت استراحته",
+    "rrule_human": "این فاز ۵ دقیقه‌ست",
+}
+
+def _is_timer_rrule(rrule):
+    return rrule in (TIMER_WORK["rrule"], TIMER_BREAK["rrule"])
+
+def _initial_timer_phase(now):
+    block_start = now.replace(minute=0 if now.minute < 30 else 30, second=0, microsecond=0)
+    minute_in_block = (now - block_start).total_seconds() / 60
+    return TIMER_BREAK if minute_in_block >= 25 else TIMER_WORK
+
+def _next_timer_phase(current_rrule):
+    return TIMER_WORK if current_rrule == TIMER_BREAK["rrule"] else TIMER_BREAK
+
+def _toggle_timer_phase(task):
+    phase = _next_timer_phase(task.rrule)
+    task.dtstart = timezone.now().replace(microsecond=0, tzinfo=None)
+    task.rrule = phase["rrule"]
+    task.summary = phase["summary"]
+    task.rrule_human = phase["rrule_human"]
+
+def _apply_recurrence_advance(task):
+    next_date, is_recurrent = calculate_next_date(
+        task.dtstart,
+        task.rrule,
+        task.exdate,
+        task.rxdate,
+    )
+    task.is_recurrent = is_recurrent
+    if next_date:
+        task.next_date = next_date
+        task.notified = False
+    else:
+        task.next_date = None
+        task.completed = True
+
 def calculate_next_date(
     dtstart: datetime,
     rrule: str | None,
@@ -42,6 +90,9 @@ def calculate_next_date(
 def create_activity(args):
     try:
         session = get_session()
+        if args.get("activity_type") == "timer":
+            now = timezone.now().replace(microsecond=0, tzinfo=None)
+            args = {**args, "dtstart": now, "is_recurrent": True, **_initial_timer_phase(now)}
         logger.info(args)
         data_validated = to_task_orm_create(args).model_dump()
         task = Task(**data_validated)
@@ -55,60 +106,19 @@ def create_activity(args):
     finally:
         session.close()
 
-def _advance_timer_pair(session, task):
-    """For linked /timer phases: park this phase and activate its pair right
-    now, instead of letting each phase run on its own fixed-interval rrule.
-    This is what makes the next phase wait for a manual ✔️/✖️ rather than
-    appearing on a timer regardless of user action."""
-    paired = session.query(Task).filter_by(id=task.related_task_id).one()
-    task.next_date = None
-    paired.next_date = timezone.now().replace(tzinfo=None, microsecond=0)
-    paired.notified = False
-
-def deactivate_task(task_id):
-    """Park a task so it never shows up as due until reactivated (next_date
-    set again). Used to keep the not-yet-current /timer phase silent."""
-    session = None
-    try:
-        session = get_session()
-        task = session.query(Task).filter_by(id=task_id).one()
-        task.next_date = None
-        session.commit()
-    except Exception as e:
-        if session:
-            session.rollback()
-        logger.warning(f"deactivate_task error: {e}")
-        raise
-    finally:
-        if session:
-            session.close()
-
 def complete_activity(task_id):
     session = None
 
     try:
         session = get_session()
         task = session.query(Task).filter_by(id=task_id).one()
+        completed_summary = task.summary
 
-        if task.related_task_id:
-            _advance_timer_pair(session, task)
-        elif task.rrule:
-            next_date, is_recurrent = calculate_next_date(
-                task.dtstart,
-                task.rrule,
-                task.exdate,
-                task.rxdate,
-            )
+        if _is_timer_rrule(task.rrule):
+            _toggle_timer_phase(task)
 
-            task.is_recurrent = is_recurrent
-
-            if next_date:
-                task.next_date = next_date
-                task.notified = False
-            else:
-                task.next_date = None
-                task.completed = True
-
+        if task.rrule:
+            _apply_recurrence_advance(task)
         else:
             task.completed = True
             task.next_date = None
@@ -116,7 +126,7 @@ def complete_activity(task_id):
         session.commit()
         session.refresh(task)
 
-        return f"{task.summary} با موفقیت انجام شد"
+        return f"{completed_summary} با موفقیت انجام شد"
 
     except Exception as e:
         if session:
@@ -177,12 +187,14 @@ def skip_activity(task_id):
     try:
         session = get_session()
         task = session.query(Task).filter_by(id=task_id).one()
+        skipped_summary = task.summary
 
-        if task.related_task_id:
-            _advance_timer_pair(session, task)
+        if _is_timer_rrule(task.rrule):
+            _toggle_timer_phase(task)
+            _apply_recurrence_advance(task)
             session.commit()
             session.refresh(task)
-            return f"این نوبت از «{task.summary}» با موفقیت رد شد."
+            return f"این نوبت از «{skipped_summary}» با موفقیت رد شد."
 
         if not task.rrule:
             raise ValueError("Cannot skip a non-recurrent task")
@@ -194,26 +206,12 @@ def skip_activity(task_id):
         exdates.append(task.next_date.isoformat())
         task.exdate = exdates
 
-        next_date, is_recurrent = calculate_next_date(
-            task.dtstart,
-            task.rrule,
-            task.exdate,
-            task.rxdate,
-        )
-
-        task.is_recurrent = is_recurrent
-
-        if next_date:
-            task.next_date = next_date
-            task.notified = False
-        else:
-            task.next_date = None
-            task.completed = True
+        _apply_recurrence_advance(task)
 
         session.commit()
         session.refresh(task)
 
-        return f"این نوبت از «{task.summary}» با موفقیت رد شد."
+        return f"این نوبت از «{skipped_summary}» با موفقیت رد شد."
 
     except Exception as e:
         if session:
@@ -229,39 +227,12 @@ def delete_activity(task_id):
     session = None
     try:
         session = get_session()
-        task = session.query(Task).filter_by(id=task_id).first()
-        ids_to_delete = [task_id]
-
-        if task and task.related_task_id:
-            ids_to_delete.append(task.related_task_id)
-            # null out the mutual reference first so deleting one row doesn't
-            # violate the other's still-standing FK to it
-            session.query(Task).filter(Task.id.in_(ids_to_delete)).update(
-                {"related_task_id": None}, synchronize_session=False
-            )
-
-        session.query(Task).filter(Task.id.in_(ids_to_delete)).delete(synchronize_session=False)
+        session.query(Task).filter_by(id=task_id).delete(synchronize_session=False)
         session.commit()
     except Exception as e:
         if session is not None:
             session.rollback()
         logger.warning(f"delete_activity error: {e}")
-        raise
-    finally:
-        if session is not None:
-            session.close()
-
-def link_related_tasks(task_id_a, task_id_b):
-    session = None
-    try:
-        session = get_session()
-        session.query(Task).filter_by(id=task_id_a).update({"related_task_id": task_id_b}, synchronize_session=False)
-        session.query(Task).filter_by(id=task_id_b).update({"related_task_id": task_id_a}, synchronize_session=False)
-        session.commit()
-    except Exception as e:
-        if session is not None:
-            session.rollback()
-        logger.warning(f"link_related_tasks error: {e}")
         raise
     finally:
         if session is not None:
