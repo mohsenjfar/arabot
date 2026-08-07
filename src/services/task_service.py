@@ -55,6 +55,34 @@ def create_activity(args):
     finally:
         session.close()
 
+def _advance_timer_pair(session, task):
+    """For linked /timer phases: park this phase and activate its pair right
+    now, instead of letting each phase run on its own fixed-interval rrule.
+    This is what makes the next phase wait for a manual ✔️/✖️ rather than
+    appearing on a timer regardless of user action."""
+    paired = session.query(Task).filter_by(id=task.related_task_id).one()
+    task.next_date = None
+    paired.next_date = timezone.now().replace(tzinfo=None, microsecond=0)
+    paired.notified = False
+
+def deactivate_task(task_id):
+    """Park a task so it never shows up as due until reactivated (next_date
+    set again). Used to keep the not-yet-current /timer phase silent."""
+    session = None
+    try:
+        session = get_session()
+        task = session.query(Task).filter_by(id=task_id).one()
+        task.next_date = None
+        session.commit()
+    except Exception as e:
+        if session:
+            session.rollback()
+        logger.warning(f"deactivate_task error: {e}")
+        raise
+    finally:
+        if session:
+            session.close()
+
 def complete_activity(task_id):
     session = None
 
@@ -62,7 +90,9 @@ def complete_activity(task_id):
         session = get_session()
         task = session.query(Task).filter_by(id=task_id).one()
 
-        if task.rrule:
+        if task.related_task_id:
+            _advance_timer_pair(session, task)
+        elif task.rrule:
             next_date, is_recurrent = calculate_next_date(
                 task.dtstart,
                 task.rrule,
@@ -147,6 +177,12 @@ def skip_activity(task_id):
     try:
         session = get_session()
         task = session.query(Task).filter_by(id=task_id).one()
+
+        if task.related_task_id:
+            _advance_timer_pair(session, task)
+            session.commit()
+            session.refresh(task)
+            return f"این نوبت از «{task.summary}» با موفقیت رد شد."
 
         if not task.rrule:
             raise ValueError("Cannot skip a non-recurrent task")

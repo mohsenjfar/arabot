@@ -1,5 +1,4 @@
 import logging
-from datetime import timedelta
 from telegram import Update
 from telegram.ext import (
     ContextTypes,
@@ -11,7 +10,7 @@ from src.services.user_service import (
     insert_user,
     activate_user
 )
-from src.services.task_service import create_activity, link_related_tasks, complete_activity
+from src.services.task_service import create_activity, link_related_tasks, notification, deactivate_task
 from src.services.report_service import get_activity_details_by_id
 from src.core import timezone
 from ..shared.commons import create_task_message
@@ -74,25 +73,18 @@ async def timer_command_handler(update: Update, context: ContextTypes.DEFAULT_TY
     user = update.effective_user
     now = timezone.now().replace(microsecond=0, tzinfo=None)
 
-    # Align the 25-min work / 5-min break cycle to the wall-clock half-hour
-    # grid (:00/:30 = work starts, :25/:55 = break starts), rather than to
-    # whatever minute /timer happens to be run at.
+    # The 25-min work / 5-min break half-hour grid (:00/:30 = work starts,
+    # :25/:55 = break starts) only decides which phase we start in. From
+    # there the cycle is fully manual: the next phase is created dormant and
+    # only activated when the user taps ✔️/✖️ on the current one.
     block_start = now.replace(minute=0 if now.minute < 30 else 30, second=0)
     minute_in_block = (now - block_start).total_seconds() / 60
-
-    if minute_in_block < 25:
-        work_dtstart = block_start
-        break_dtstart = block_start + timedelta(minutes=25)
-        current_task_summary = TIMER_RESUME_MESSAGE
-    else:
-        break_dtstart = block_start + timedelta(minutes=25)
-        work_dtstart = block_start + timedelta(minutes=30)
-        current_task_summary = TIMER_BREAK_MESSAGE
+    starting_phase_is_break = minute_in_block >= 25
 
     break_task = create_activity({
         "user_id": user.id,
         "summary": TIMER_BREAK_MESSAGE,
-        "dtstart": break_dtstart,
+        "dtstart": now,
         "is_recurrent": True,
         "rrule": TIMER_RRULE,
         "rrule_human": TIMER_RRULE_HUMAN,
@@ -100,18 +92,22 @@ async def timer_command_handler(update: Update, context: ContextTypes.DEFAULT_TY
     work_task = create_activity({
         "user_id": user.id,
         "summary": TIMER_RESUME_MESSAGE,
-        "dtstart": work_dtstart,
+        "dtstart": now,
         "is_recurrent": True,
         "rrule": TIMER_RRULE,
         "rrule_human": TIMER_RRULE_HUMAN,
     })
     link_related_tasks(break_task["id"], work_task["id"])
 
-    current_task = break_task if current_task_summary == TIMER_BREAK_MESSAGE else work_task
+    current_task, other_task = (
+        (break_task, work_task) if starting_phase_is_break else (work_task, break_task)
+    )
+    deactivate_task(other_task["id"])
+
     task_details = get_activity_details_by_id(current_task["id"])
     text, reply_markup = create_task_message(task_details)
     await update.message.reply_text(text=text, reply_markup=reply_markup)
-    complete_activity(current_task["id"])
+    notification(current_task["id"])
 
     await update.message.delete()
     return ACTIVITY

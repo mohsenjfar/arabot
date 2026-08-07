@@ -10,7 +10,8 @@ from src.services.task_service import (
     delete_activity,
     clear_activity,
     skip_activity,
-    complete_activity
+    complete_activity,
+    notification
 )
 from src.services.report_service import get_activity_details_by_id
 from ..shared.commons import create_task_message
@@ -18,19 +19,34 @@ from ..shared.constants import *
 
 logger = logging.getLogger(__name__)
 
+async def _reveal_paired_task(context, chat_id, related_task_id):
+    # For /timer phases: as soon as the current phase is confirmed/skipped,
+    # show its paired phase right away instead of waiting for the up-to-60s
+    # background job, and mark it notified so that job doesn't resend it.
+    if not related_task_id:
+        return
+    task_details = get_activity_details_by_id(related_task_id)
+    text, reply_markup = create_task_message(task_details)
+    await context.bot.send_message(chat_id, text=text, reply_markup=reply_markup)
+    notification(related_task_id)
+
 async def complete_activity_query_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     task_id = query.data.split(':')[1]
+    related_task_id = get_activity_details_by_id(task_id).get('related_task_id')
     result = complete_activity(task_id)
     await query.answer(result)
     await query.message.delete()
+    await _reveal_paired_task(context, query.message.chat_id, related_task_id)
 
 async def skip_activity_query_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     task_id = query.data.split(':')[1]
+    related_task_id = get_activity_details_by_id(task_id).get('related_task_id')
     result = skip_activity(task_id)
     await query.answer(result)
     await query.message.delete()
+    await _reveal_paired_task(context, query.message.chat_id, related_task_id)
 
 async def delete_activity_query_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query

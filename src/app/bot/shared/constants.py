@@ -24,4 +24,4 @@ REPORT_PROMPT = "چه گزارشی می‌خوای ببینی {} عزیز؟ مث
 TIMER_BREAK_MESSAGE = "🍹 وقت استراحته"
 TIMER_RESUME_MESSAGE = "💻 وقت شروع مجدد کاره"
 TIMER_RRULE = "FREQ=MINUTELY;INTERVAL=30"
-TIMER_RRULE_HUMAN = "هر ۳۰ دقیقه"
+TIMER_RRULE_HUMAN = "با ✔️ یا ✖️ فاز بعدی شروع می‌شه"
