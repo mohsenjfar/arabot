@@ -4,7 +4,7 @@ from telegram import Update
 from telegram.ext import ContextTypes
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
-from src.services.task_service import notification
+from src.services.task_service import notification, complete_activity
 from src.services.report_service import (
     get_activity_details_by_id,
     get_due_tasks
@@ -56,7 +56,13 @@ async def check_and_send_tasks(context):
                 task_details = get_activity_details_by_id(task.id)
                 text, reply_markup  = create_task_message(task_details)
                 await context.bot.send_message(task.user_id, text=text, reply_markup=reply_markup)
-                notification(task.id)
+                if task_details.get('related_task_id'):
+                    # paired recurring activities (e.g. the /timer pomodoro
+                    # cycle) advance to their next occurrence automatically
+                    # instead of waiting for a manual complete tap
+                    complete_activity(task.id)
+                else:
+                    notification(task.id)
             except Exception as e:
                 logger.info(f"Error sending message for task {task.id} to chat {task.user_id}: {e}")
     except Exception as e:

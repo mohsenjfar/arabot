@@ -15,7 +15,8 @@ def to_task_response(task) -> TaskResponse:
         description=task.description,
         completed=task.completed,
         is_recurrent=task.is_recurrent,
-        rrule_human=task.rrule_human if task.rrule_human else ""
+        rrule_human=task.rrule_human if task.rrule_human else "",
+        related_task_id=task.related_task_id
     )
 
 def to_task_orm_create(args) -> TaskCreate:
@@ -29,6 +30,7 @@ def to_task_orm_create(args) -> TaskCreate:
         is_recurrent=args.get('is_recurrent'),
         rrule=args.get('rrule'),
         rrule_human=args.get('rrule_human'),
+        related_task_id=args.get('related_task_id'),
     )
 
 def to_task_orm_update(kwargs) -> TaskUpdate:

@@ -18,7 +18,8 @@ from .command_handlers import (
     restart_command_handler,
     help_command_handler,
     stop_command_handler,
-    report_command_handler
+    report_command_handler,
+    timer_command_handler
 )
 
 from .query_handlers import (
@@ -44,6 +45,7 @@ main_conversation = ConversationHandler(
         ACTIVITY: [
             CommandHandler("help", help_command_handler),
             CommandHandler("report", report_command_handler),
+            CommandHandler("timer", timer_command_handler),
             CommandHandler("stop", stop_command_handler),
             MessageHandler(filters.TEXT & ~filters.COMMAND, create_activity_message_handler),
             CallbackQueryHandler(complete_activity_query_handler, pattern="^complete:"),

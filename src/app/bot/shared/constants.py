@@ -20,3 +20,8 @@ EDIT_ACTIVITY_PROMPT = "میخوام این فعالیت رو ویرایش کن�
 EDIT_ACTIVITY_RESPONSE = "بسیار خوب {} عزیز، چی قراره تغییر کنه؟ بهم بگو تا تغییرش بدم"
 
 REPORT_PROMPT = "چه گزارشی می‌خوای ببینی {} عزیز؟ مثلا بگو «کارهای امروز» یا «فعالیت‌های این هفته» 📊"
+
+TIMER_BREAK_MESSAGE = "🍹 وقت استراحته"
+TIMER_RESUME_MESSAGE = "💻 وقت شروع مجدد کاره"
+TIMER_RRULE = "FREQ=MINUTELY;INTERVAL=30"
+TIMER_RRULE_HUMAN = "هر ۳۰ دقیقه"

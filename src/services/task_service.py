@@ -193,12 +193,39 @@ def delete_activity(task_id):
     session = None
     try:
         session = get_session()
-        session.query(Task).filter_by(id=task_id).delete(synchronize_session=False)
+        task = session.query(Task).filter_by(id=task_id).first()
+        ids_to_delete = [task_id]
+
+        if task and task.related_task_id:
+            ids_to_delete.append(task.related_task_id)
+            # null out the mutual reference first so deleting one row doesn't
+            # violate the other's still-standing FK to it
+            session.query(Task).filter(Task.id.in_(ids_to_delete)).update(
+                {"related_task_id": None}, synchronize_session=False
+            )
+
+        session.query(Task).filter(Task.id.in_(ids_to_delete)).delete(synchronize_session=False)
         session.commit()
     except Exception as e:
         if session is not None:
             session.rollback()
         logger.warning(f"delete_activity error: {e}")
+        raise
+    finally:
+        if session is not None:
+            session.close()
+
+def link_related_tasks(task_id_a, task_id_b):
+    session = None
+    try:
+        session = get_session()
+        session.query(Task).filter_by(id=task_id_a).update({"related_task_id": task_id_b}, synchronize_session=False)
+        session.query(Task).filter_by(id=task_id_b).update({"related_task_id": task_id_a}, synchronize_session=False)
+        session.commit()
+    except Exception as e:
+        if session is not None:
+            session.rollback()
+        logger.warning(f"link_related_tasks error: {e}")
         raise
     finally:
         if session is not None:

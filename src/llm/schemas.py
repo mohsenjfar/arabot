@@ -25,6 +25,7 @@ class TaskBase(BaseModel):
     description: Optional[str] = None
     completed: Optional[bool] = False
     notified: Optional[bool] = False
+    related_task_id: Optional[str] = None
 
     @field_validator("dtstart", "dtend", "next_date", mode="before")
     def convert_datetime_to_naive_utc(cls, v):
@@ -97,4 +98,5 @@ class TaskResponse(BaseModel):
     completed: bool
     is_recurrent: bool
     rrule_human: str
+    related_task_id: Optional[str] = None
 
