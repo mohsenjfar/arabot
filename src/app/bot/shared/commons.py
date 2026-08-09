@@ -1,8 +1,10 @@
 import logging
+from html import escape
 
 from telegram import Update
 from telegram.ext import ContextTypes
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.constants import ParseMode
 
 from src.services.task_service import notification
 from src.services.report_service import (
@@ -18,11 +20,13 @@ def create_task_message(task_details):
     description = task_details.get('description')
     next_date = task_details.get('next_date')
     rrule_human = task_details.get('rrule_human')
+    # description is wrapped in <code> so Telegram lets users copy it with a
+    # single tap, instead of the manual select-and-copy other fields get.
     lines = (
-        f"🔖 *{summary}*",
-        f"\n📝 {description}" if description else "",
-        f"\n📆 {next_date}" if next_date else "",
-        f"🔄 {rrule_human}" if rrule_human else ""
+        f"🔖 <b>{escape(summary)}</b>",
+        f"\n📝 <code>{escape(description)}</code>" if description else "",
+        f"\n📆 {escape(next_date)}" if next_date else "",
+        f"🔄 {escape(rrule_human)}" if rrule_human else ""
     )
     task_id = task_details.get('id')
     buttons = [
@@ -42,7 +46,7 @@ async def task_details_view(update: Update, context: ContextTypes.DEFAULT_TYPE):
     task = get_activity_details_by_id(task_id)
     text, reply_markup = create_task_message(task)
     notification(task_id)
-    await update.message.reply_text(text=text, reply_markup=reply_markup)
+    await update.message.reply_text(text=text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
 
 async def check_and_send_tasks(context):
     try:
@@ -55,7 +59,7 @@ async def check_and_send_tasks(context):
             try:
                 task_details = get_activity_details_by_id(task.id)
                 text, reply_markup  = create_task_message(task_details)
-                await context.bot.send_message(task.user_id, text=text, reply_markup=reply_markup)
+                await context.bot.send_message(task.user_id, text=text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
                 notification(task.id)
             except Exception as e:
                 logger.info(f"Error sending message for task {task.id} to chat {task.user_id}: {e}")

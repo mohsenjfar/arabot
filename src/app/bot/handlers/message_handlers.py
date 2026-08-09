@@ -4,6 +4,7 @@ import logging
 
 from telegram import Update
 from telegram.ext import ContextTypes
+from telegram.constants import ParseMode
 
 from src.services.message_service import (
     insert_message,
@@ -65,7 +66,7 @@ async def _show_task_result(msg, result):
         return
 
     text, reply_markup = create_task_message(result)
-    await msg.edit_text(text=text, reply_markup=reply_markup)
+    await msg.edit_text(text=text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
     notification(result.get("id"))
 
 
@@ -79,12 +80,13 @@ class _TrackedMessage:
         self._chat_id = chat_id
         self._message_id = message_id
 
-    async def edit_text(self, text=None, reply_markup=None):
+    async def edit_text(self, text=None, reply_markup=None, parse_mode=None):
         await self._bot.edit_message_text(
             chat_id=self._chat_id,
             message_id=self._message_id,
             text=text,
             reply_markup=reply_markup,
+            parse_mode=parse_mode,
         )
 
 
@@ -111,7 +113,8 @@ async def create_activity_message_handler(update: Update, context: ContextTypes.
     args = {"user_id":user.id, "summary":update.message.text}
     result = create_activity(args)
     text, reply_markup = create_task_message(result)
-    await update.message.reply_text(text=text, reply_markup=reply_markup)
+    await update.message.reply_text(text=text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
+    notification(result.get("id"))
     await update.message.delete()
 
 

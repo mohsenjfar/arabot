@@ -4,6 +4,7 @@ from telegram.ext import (
     ContextTypes,
     ConversationHandler
 )
+from telegram.constants import ParseMode
 from src.services.user_service import (
     user_exists,
     user_allowed,
@@ -80,7 +81,7 @@ async def timer_command_handler(update: Update, context: ContextTypes.DEFAULT_TY
 
     task_details = get_activity_details_by_id(task["id"])
     text, reply_markup = create_task_message(task_details)
-    await update.message.reply_text(text=text, reply_markup=reply_markup)
+    await update.message.reply_text(text=text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
     notification(task["id"])
 
     await update.message.delete()

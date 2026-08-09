@@ -3,15 +3,16 @@ from src.persistence.models import Task
 from src.persistence.db import get_session
 from src.core import timezone
 from dateutil.rrule import rrulestr, rruleset
-from datetime import datetime
+from datetime import datetime, timedelta
 from src.llm.mapper import to_task_response, to_task_orm_create, to_task_orm_update
 
 logger = logging.getLogger(__name__)
 
 # /timer has no dedicated column/flag on the row itself: a task is "a timer
-# phase" purely by virtue of its rrule being one of these two. Toggling
-# between them (see _toggle_timer_phase) is what keeps a single row cycling
-# between work and break instead of needing a second, linked row.
+# phase" purely by virtue of its rrule being one of these two. Resyncing to
+# whichever one the grid says is current (see _sync_timer_phase) is what
+# keeps a single row cycling between work and break instead of needing a
+# second, linked row.
 TIMER_WORK = {
     "rrule": "FREQ=MINUTELY;INTERVAL=25",
     "summary": "💻 وقت شروع مجدد کاره",
@@ -26,17 +27,22 @@ TIMER_BREAK = {
 def _is_timer_rrule(rrule):
     return rrule in (TIMER_WORK["rrule"], TIMER_BREAK["rrule"])
 
-def _initial_timer_phase(now):
+def _current_timer_session(now):
+    """Which phase is live *right now* on the fixed :00/:30 grid (each
+    30-minute block is 25 minutes of work then 5 minutes of break), and the
+    grid-aligned instant that phase started. Used both to pick the phase when
+    /timer is first run and to resync on every ✔️/✖️, so a late confirmation
+    reflects the session actually in progress instead of blindly flipping to
+    the opposite of whatever phase was stored before."""
     block_start = now.replace(minute=0 if now.minute < 30 else 30, second=0, microsecond=0)
     minute_in_block = (now - block_start).total_seconds() / 60
-    return TIMER_BREAK if minute_in_block >= 25 else TIMER_WORK
+    if minute_in_block >= 25:
+        return TIMER_BREAK, block_start + timedelta(minutes=25)
+    return TIMER_WORK, block_start
 
-def _next_timer_phase(current_rrule):
-    return TIMER_WORK if current_rrule == TIMER_BREAK["rrule"] else TIMER_BREAK
-
-def _toggle_timer_phase(task):
-    phase = _next_timer_phase(task.rrule)
-    task.dtstart = timezone.now().replace(microsecond=0, tzinfo=None)
+def _sync_timer_phase(task, now):
+    phase, session_start = _current_timer_session(now)
+    task.dtstart = session_start
     task.rrule = phase["rrule"]
     task.summary = phase["summary"]
     task.rrule_human = phase["rrule_human"]
@@ -92,7 +98,8 @@ def create_activity(args):
         session = get_session()
         if args.get("activity_type") == "timer":
             now = timezone.now().replace(microsecond=0, tzinfo=None)
-            args = {**args, "dtstart": now, "is_recurrent": True, **_initial_timer_phase(now)}
+            phase, session_start = _current_timer_session(now)
+            args = {**args, "dtstart": session_start, "is_recurrent": True, **phase}
         logger.info(args)
         data_validated = to_task_orm_create(args).model_dump()
         task = Task(**data_validated)
@@ -115,7 +122,7 @@ def complete_activity(task_id):
         completed_summary = task.summary
 
         if _is_timer_rrule(task.rrule):
-            _toggle_timer_phase(task)
+            _sync_timer_phase(task, timezone.now().replace(microsecond=0, tzinfo=None))
 
         if task.rrule:
             _apply_recurrence_advance(task)
@@ -181,6 +188,21 @@ def is_task_recurrent(task_id):
         if session is not None:
             session.close()
 
+def is_timer_task(task_id):
+    session = None
+    try:
+        session = get_session()
+        task = session.query(Task).filter_by(id=task_id).one()
+        return _is_timer_rrule(task.rrule)
+    except Exception as e:
+        if session is not None:
+            session.rollback()
+        logger.warning(f"is_timer_task error: {e}")
+        raise
+    finally:
+        if session is not None:
+            session.close()
+
 def skip_activity(task_id):
     session = None
 
@@ -190,7 +212,7 @@ def skip_activity(task_id):
         skipped_summary = task.summary
 
         if _is_timer_rrule(task.rrule):
-            _toggle_timer_phase(task)
+            _sync_timer_phase(task, timezone.now().replace(microsecond=0, tzinfo=None))
             _apply_recurrence_advance(task)
             session.commit()
             session.refresh(task)
