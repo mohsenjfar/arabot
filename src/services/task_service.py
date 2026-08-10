@@ -9,10 +9,10 @@ from src.llm.mapper import to_task_response, to_task_orm_create, to_task_orm_upd
 logger = logging.getLogger(__name__)
 
 # /timer has no dedicated column/flag on the row itself: a task is "a timer
-# phase" purely by virtue of its rrule being one of these two. Resyncing to
-# whichever one the grid says is current (see _sync_timer_phase) is what
-# keeps a single row cycling between work and break instead of needing a
-# second, linked row.
+# phase" purely by virtue of its rrule being one of these two. A row always
+# describes the block that's *coming up next*, never the block in progress
+# (see _next_timer_block) - delivery only ever happens through the
+# background job once next_date is reached, there is no synchronous display.
 TIMER_WORK = {
     "rrule": "FREQ=MINUTELY;INTERVAL=25",
     "summary": "💻 وقت شروع مجدد کاره",
@@ -23,6 +23,10 @@ TIMER_BREAK = {
     "summary": "🍹 وقت استراحته",
     "rrule_human": "این فاز ۵ دقیقه‌ست",
 }
+TIMER_PHASE_MINUTES = {
+    TIMER_WORK["rrule"]: 25,
+    TIMER_BREAK["rrule"]: 5,
+}
 
 def _is_timer_rrule(rrule):
     return rrule in (TIMER_WORK["rrule"], TIMER_BREAK["rrule"])
@@ -30,22 +34,31 @@ def _is_timer_rrule(rrule):
 def _current_timer_session(now):
     """Which phase is live *right now* on the fixed :00/:30 grid (each
     30-minute block is 25 minutes of work then 5 minutes of break), and the
-    grid-aligned instant that phase started. Used both to pick the phase when
-    /timer is first run and to resync on every ✔️/✖️, so a late confirmation
-    reflects the session actually in progress instead of blindly flipping to
-    the opposite of whatever phase was stored before."""
+    grid-aligned instant that block started."""
     block_start = now.replace(minute=0 if now.minute < 30 else 30, second=0, microsecond=0)
     minute_in_block = (now - block_start).total_seconds() / 60
     if minute_in_block >= 25:
         return TIMER_BREAK, block_start + timedelta(minutes=25)
     return TIMER_WORK, block_start
 
-def _sync_timer_phase(task, now):
-    phase, session_start = _current_timer_session(now)
-    task.dtstart = session_start
-    task.rrule = phase["rrule"]
-    task.summary = phase["summary"]
-    task.rrule_human = phase["rrule_human"]
+def _next_timer_block(now):
+    """The block that immediately follows whichever one `now` falls into:
+    the opposite phase, starting the instant the current block ends. Always
+    recomputed fresh from the real clock (never from whatever was stored
+    before), so a late ✔️/✖️ still lands on the correct upcoming block
+    instead of drifting."""
+    phase, block_start = _current_timer_session(now)
+    next_start = block_start + timedelta(minutes=TIMER_PHASE_MINUTES[phase["rrule"]])
+    next_phase = TIMER_BREAK if phase is TIMER_WORK else TIMER_WORK
+    return next_phase, next_start
+
+def _advance_timer_to_next_block(task, now):
+    next_phase, next_start = _next_timer_block(now)
+    task.rrule = next_phase["rrule"]
+    task.summary = next_phase["summary"]
+    task.rrule_human = next_phase["rrule_human"]
+    task.next_date = next_start
+    task.notified = False
 
 def _apply_recurrence_advance(task):
     next_date, is_recurrent = calculate_next_date(
@@ -98,8 +111,8 @@ def create_activity(args):
         session = get_session()
         if args.get("activity_type") == "timer":
             now = timezone.now().replace(microsecond=0, tzinfo=None)
-            phase, session_start = _current_timer_session(now)
-            args = {**args, "dtstart": session_start, "is_recurrent": True, **phase}
+            next_phase, next_start = _next_timer_block(now)
+            args = {**args, "dtstart": now, "is_recurrent": True, "next_date": next_start, **next_phase}
         logger.info(args)
         data_validated = to_task_orm_create(args).model_dump()
         task = Task(**data_validated)
@@ -122,9 +135,8 @@ def complete_activity(task_id):
         completed_summary = task.summary
 
         if _is_timer_rrule(task.rrule):
-            _sync_timer_phase(task, timezone.now().replace(microsecond=0, tzinfo=None))
-
-        if task.rrule:
+            _advance_timer_to_next_block(task, timezone.now().replace(microsecond=0, tzinfo=None))
+        elif task.rrule:
             _apply_recurrence_advance(task)
         else:
             task.completed = True
@@ -188,21 +200,6 @@ def is_task_recurrent(task_id):
         if session is not None:
             session.close()
 
-def is_timer_task(task_id):
-    session = None
-    try:
-        session = get_session()
-        task = session.query(Task).filter_by(id=task_id).one()
-        return _is_timer_rrule(task.rrule)
-    except Exception as e:
-        if session is not None:
-            session.rollback()
-        logger.warning(f"is_timer_task error: {e}")
-        raise
-    finally:
-        if session is not None:
-            session.close()
-
 def skip_activity(task_id):
     session = None
 
@@ -212,8 +209,7 @@ def skip_activity(task_id):
         skipped_summary = task.summary
 
         if _is_timer_rrule(task.rrule):
-            _sync_timer_phase(task, timezone.now().replace(microsecond=0, tzinfo=None))
-            _apply_recurrence_advance(task)
+            _advance_timer_to_next_block(task, timezone.now().replace(microsecond=0, tzinfo=None))
             session.commit()
             session.refresh(task)
             return f"این نوبت از «{skipped_summary}» با موفقیت رد شد."

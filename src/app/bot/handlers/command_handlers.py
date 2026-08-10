@@ -4,16 +4,13 @@ from telegram.ext import (
     ContextTypes,
     ConversationHandler
 )
-from telegram.constants import ParseMode
 from src.services.user_service import (
     user_exists,
     user_allowed,
     insert_user,
     activate_user
 )
-from src.services.task_service import create_activity, notification
-from src.services.report_service import get_activity_details_by_id
-from ..shared.commons import create_task_message
+from src.services.task_service import create_activity
 from ..shared.constants import *
 from src.llm.llm_client import get_help_response_from_model
 
@@ -72,17 +69,11 @@ async def report_command_handler(update: Update, context: ContextTypes.DEFAULT_T
 async def timer_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
 
-    # Which phase we start in (work vs break) is decided by create_activity
-    # itself from the wall-clock grid. From there the cycle is driven by the
-    # task's own rrule: completing/skipping it toggles rrule+summary to the
-    # other phase and schedules it via the normal recurrence mechanism, so
-    # it only becomes due after its interval elapses.
-    task = create_activity({"user_id": user.id, "activity_type": "timer"})
-
-    task_details = get_activity_details_by_id(task["id"])
-    text, reply_markup = create_task_message(task_details)
-    await update.message.reply_text(text=text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
-    notification(task["id"])
+    # create_activity seeds the row with the *next* block (work vs break)
+    # from the wall-clock grid, not the block in progress right now - same
+    # as every ✔️/✖️ afterwards. There is no card shown here: delivery is
+    # always through the background job once next_date is reached.
+    create_activity({"user_id": user.id, "activity_type": "timer"})
 
     await update.message.delete()
     return ACTIVITY

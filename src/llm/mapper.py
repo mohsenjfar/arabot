@@ -24,7 +24,10 @@ def to_task_orm_create(args) -> TaskCreate:
         user_id=args.get('user_id'),
         summary=args.get('summary'),
         dtstart=dtstart,
-        next_date=dtstart,
+        # /timer seeds next_date to the *next* grid block rather than dtstart
+        # itself (see create_activity), so an explicit next_date must win
+        # over the dtstart default used by every other activity.
+        next_date=args.get('next_date') or dtstart,
         description=args.get('description'),
         is_recurrent=args.get('is_recurrent'),
         rrule=args.get('rrule'),
