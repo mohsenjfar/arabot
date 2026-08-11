@@ -13,7 +13,8 @@ from src.services.message_service import (
 from src.services.task_service import (
     create_activity,
     update_activity,
-    notification
+    notification,
+    clear_activity
 )
 from src.services.report_service import (
     report_activities_by_time,
@@ -35,22 +36,28 @@ _TOOL_NAMES = {
 }
 
 
-def _extract_fake_tool_call(content):
-    """Smaller models sometimes emit a tool call as JSON text in the message
-    content instead of using the API's structured tool_calls field. Recover
-    the intended call instead of showing raw JSON to the user."""
+def _parse_json_ish(content):
+    """Best-effort parse of `content` as a JSON object, tolerating Python
+    literals (True/False/None) some models emit instead of JSON's
+    true/false/null. Returns the dict, or None if it's not a JSON object."""
     if not content:
         return None
     try:
         data = json.loads(content)
     except (ValueError, TypeError):
         try:
-            # Some models write Python-literal True/False/None instead of JSON's
-            # true/false/null; ast.literal_eval safely parses that shape too.
             data = ast.literal_eval(content)
         except (ValueError, TypeError, SyntaxError):
             return None
-    if not isinstance(data, dict) or data.get("name") not in _TOOL_NAMES:
+    return data if isinstance(data, dict) else None
+
+
+def _extract_fake_tool_call(content):
+    """Smaller models sometimes emit a tool call as JSON text in the message
+    content instead of using the API's structured tool_calls field. Recover
+    the intended call instead of showing raw JSON to the user."""
+    data = _parse_json_ish(content)
+    if not data or data.get("name") not in _TOOL_NAMES:
         return None
     args = data.get("parameters") or data.get("arguments") or {}
     return data["name"], json.dumps(args, ensure_ascii=False)
@@ -79,6 +86,10 @@ class _TrackedMessage:
         self._bot = bot
         self._chat_id = chat_id
         self._message_id = message_id
+
+    @property
+    def message_id(self):
+        return self._message_id
 
     async def edit_text(self, text=None, reply_markup=None, parse_mode=None):
         await self._bot.edit_message_text(
@@ -128,6 +139,15 @@ async def llm_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
     if not user_text:
         return ACTIVITY
 
+    # Set only by the ✏️ button, which strips that activity's card down to a
+    # bare prompt (no buttons). Kept (not popped) across turns: the system
+    # prompt requires the model to preview and get explicit confirmation
+    # before calling any function, so a plain-text reply is usually the
+    # *middle* of an edit conversation, not the end of it. Only cleared once
+    # this turn actually finalizes the edit (a tool call executes) or gives
+    # up (an error) - see below.
+    editing_task_id = context.user_data.get("task_id")
+
     msg = await _get_working_message(update, context)
     await update.message.delete()
 
@@ -145,13 +165,34 @@ async def llm_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
 
         if not calls:
             final_text = message.content
-            if final_text:
+            # Never show a raw JSON/dict blob to the user: if the model
+            # dumped an object here that _extract_fake_tool_call didn't
+            # recognize as one of the known tools (e.g. a TaskResponse-
+            # shaped dict), treat it as a failure instead of leaking it.
+            if final_text and _parse_json_ish(final_text) is None:
                 insert_message(user.id, 'assistant', final_text)
                 await msg.edit_text(final_text)
+                if editing_task_id:
+                    # This is very likely the confirmation preview the
+                    # system prompt requires before calling edit_activity -
+                    # stay in LLM so the user's next message (their "بله")
+                    # keeps talking to the model instead of being treated
+                    # as a brand new plain-text activity.
+                    context.user_data["prompt_message_id"] = msg.message_id
+                    return LLM
+                return ACTIVITY
             else:
                 delete_message(message_id)
+                if editing_task_id:
+                    context.user_data.pop("task_id", None)
+                    clear_activity(editing_task_id)
                 await msg.edit_text(AI_SERVER_ERROR)
             return ACTIVITY
+
+        # A tool is actually about to run - whichever one it is, this turn
+        # is the terminal step of the edit conversation, so stop tracking it.
+        if editing_task_id:
+            context.user_data.pop("task_id", None)
 
         for function_name, raw_args in calls:
             args = json.loads(raw_args)
@@ -161,6 +202,8 @@ async def llm_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
 
             if function_name == "edit_activity":
                 result = update_activity(args)
+                if editing_task_id and isinstance(result, dict) and result.get("status") == "error":
+                    clear_activity(editing_task_id)
                 await _show_task_result(msg, result)
                 result = json.dumps(result, indent=2, ensure_ascii=False)
 
@@ -189,6 +232,9 @@ async def llm_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     except Exception as e:
         delete_message(message_id)
+        if editing_task_id:
+            context.user_data.pop("task_id", None)
+            clear_activity(editing_task_id)
         logger.warning(f"Initial model call failed: {e}")
         await msg.edit_text(AI_SERVER_ERROR)
         return ACTIVITY
