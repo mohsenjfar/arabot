@@ -77,6 +77,28 @@ async def _show_task_result(msg, result):
     notification(result.get("id"))
 
 
+async def _show_task_results(context, chat_id, msg, results):
+    """Time-based reports render each matching activity as its own full
+    card with buttons - exactly like the reminder job - instead of bundling
+    them into one summary. The first one reuses `msg` (the in-progress
+    prompt bubble); the rest are sent as new messages. Each one shown is
+    marked notified so it isn't repeated by a later report or double-sent
+    by the reminder job."""
+    if not results:
+        await msg.edit_text("فعالیتی وجود نداره")
+        return
+
+    first, *rest = results
+    text, reply_markup = create_task_message(first)
+    await msg.edit_text(text=text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
+    notification(first.get("id"))
+
+    for result in rest:
+        text, reply_markup = create_task_message(result)
+        await context.bot.send_message(chat_id, text=text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
+        notification(result.get("id"))
+
+
 class _TrackedMessage:
     """Adapts a (chat_id, message_id) pair to the same edit_text(...) interface
     telegram.Message exposes, so callers don't care whether they're editing a
@@ -140,12 +162,11 @@ async def llm_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
         return ACTIVITY
 
     # Set only by the ✏️ button, which strips that activity's card down to a
-    # bare prompt (no buttons). Kept (not popped) across turns: the system
-    # prompt requires the model to preview and get explicit confirmation
-    # before calling any function, so a plain-text reply is usually the
-    # *middle* of an edit conversation, not the end of it. Only cleared once
-    # this turn actually finalizes the edit (a tool call executes) or gives
-    # up (an error) - see below.
+    # bare prompt (no buttons). If this turn ends without successfully
+    # editing it (error, or the model never gets to a confirmed tool call),
+    # the user is left with no way to interact with it - reset its
+    # `notified` flag so the reminder job resends the full card with
+    # buttons. Popped once the edit either finalizes or gives up.
     editing_task_id = context.user_data.get("task_id")
 
     msg = await _get_working_message(update, context)
@@ -172,15 +193,15 @@ async def llm_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
             if final_text and _parse_json_ish(final_text) is None:
                 insert_message(user.id, 'assistant', final_text)
                 await msg.edit_text(final_text)
-                if editing_task_id:
-                    # This is very likely the confirmation preview the
-                    # system prompt requires before calling edit_activity -
-                    # stay in LLM so the user's next message (their "بله")
-                    # keeps talking to the model instead of being treated
-                    # as a brand new plain-text activity.
-                    context.user_data["prompt_message_id"] = msg.message_id
-                    return LLM
-                return ACTIVITY
+                # The system prompt requires a confirmation preview before
+                # *every* function call (edit, reports, everything) - a
+                # plain-text reply here is almost always that preview, not a
+                # final answer. Stay in LLM so the user's next message
+                # (their "بله") keeps talking to the model instead of being
+                # treated as a brand new plain-text activity. The escape
+                # hatch is /start, which always resets to ACTIVITY.
+                context.user_data["prompt_message_id"] = msg.message_id
+                return LLM
             else:
                 delete_message(message_id)
                 if editing_task_id:
@@ -209,8 +230,15 @@ async def llm_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
 
             elif function_name == "report_activities_by_time":
                 result = report_activities_by_time(args)
-                await _show_task_result(msg, result)
-                result = json.dumps(result, indent=2, ensure_ascii=False)
+                if isinstance(result, list):
+                    await _show_task_results(context, update.effective_chat.id, msg, result)
+                    result = json.dumps(
+                        {"count": len(result), "summaries": [r.get("summary") for r in result]},
+                        ensure_ascii=False,
+                    )
+                else:
+                    await _show_task_result(msg, result)
+                    result = json.dumps(result, indent=2, ensure_ascii=False)
 
             elif function_name == "report_activities_by_summary":
                 result = report_activities_by_summary(args)
