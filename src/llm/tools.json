@@ -49,7 +49,7 @@
     "type": "function",
     "function": {
       "name": "report_activities_by_time",
-      "description": "Retrieve today's, tomorrow's, or this week's (through end of Friday) activities. Each matching activity is shown individually as its own card. Only call after user confirmation.",
+      "description": "Retrieve today's, tomorrow's, or this week's (through end of Friday) activities. Each matching activity is shown individually as its own card. This is a read-only query - call it immediately, no confirmation needed.",
       "parameters": {
         "type": "object",
         "properties": {
