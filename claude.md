@@ -29,8 +29,8 @@ bot's `task_edit_keyboard` UX but adapted to the current single-row rrule
   `update_activity_frequency`, `describe_rrule`, `get_activity_datetime`
   (task_service.py); `list_task_resource_links`, `link_task_resource_by_id`,
   `unlink_task_resource_by_id` (resource_service.py).
-- Not yet committed to git (working tree has this + the resource/inventory
-  feature below, both already deployed but uncommitted - see `git status`).
+- Committed together with the resource/inventory feature below as
+  `9bc8e51` and pushed to `origin/development`.
 
 **Resource/inventory tracking feature** (2026-08-13, deployed to `arabot-dev`)
 
