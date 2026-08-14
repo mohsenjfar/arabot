@@ -1,48 +1,50 @@
-# Claude — Shared Work Log
+# کلود — دفتر مشترک کار
 
-Persistent handoff point between mohsen and Claude for this repo. After finishing
-each task, Claude updates **Last completed**. mohsen writes the next ask under
-**Up next** — that's the queue for the following session.
+نقطه‌ی ارتباطی پایدار بین محسن و کلود برای این مخزن. کلود بعد از هر کار بخش
+«آخرین کارهای انجام‌شده» رو به‌روز می‌کنه؛ محسن هم کار بعدی رو زیر بخش
+«کار بعدی» می‌نویسه تا سشن بعدی همون‌جا شروع بشه.
 
-## Last completed
+## آخرین کارهای انجام‌شده
 
-**Manual (non-LLM) button-driven edit + resource-link flow** (2026-08-14, deployed to `arabot-dev`)
+**ویرایش فعالیت و مدیریت منابع به‌صورت دستی (بدون مدل زبانی)** (۱۴۰۵/۰۵/۲۳ - روی `arabot-dev` دیپلوی شده)
 
-The ✏️ and 🧺 buttons on an activity card no longer open an LLM chat - they're
-now fully button/text driven, mirroring the old `legacy-bot-version` Django
-bot's `task_edit_keyboard` UX but adapted to the current single-row rrule
-`Task` model:
+دکمه‌های ✏️ و 🧺 روی کارت فعالیت دیگه یک گفتگوی مدل زبانی رو باز نمی‌کنن؛
+کاملاً با دکمه و متن ساده کار می‌کنن، شبیه رفتار همون بات قدیمی جنگو
+(شاخه‌ی `legacy-bot-version`, کیبورد `task_edit_keyboard`) ولی هماهنگ‌شده
+با معماری فعلی که هر فعالیت تکرارشونده فقط یک ردیف در جدول `Task` داره:
 
-- ✏️ opens an edit menu: 🏷️ title, 📋 description, 📆 date (Jalali calendar
-  picker, `src/app/bot/shared/jalali_calendar.py`), 🔄 frequency (raw RRULE
-  text, validated before saving), 🟠🔵 copy (clones the task + its resource
-  links). New conversation states `EDIT_MENU`/`EDIT_FIELD`.
-- 🧺 opens a resource-link menu: existing links show with a ✖️ remove button;
-  🔍 uses Telegram's inline-query picker (`switch_inline_query_current_chat`)
-  to pick an existing resource, then a plain quantity prompt links it. New
-  states `RESOURCE_MENU`/`RESOURCE_QTY`.
-- `edit_activity`, `create_resource`, `manage_task_resource` stay wired in
-  `tools.json`/`instructions.md` for the LLM - only *these two buttons*
-  stopped using them. `/report` and `/resource` (defining a new resource
-  type) are still LLM-driven.
-- No DB schema change. New service helpers: `copy_activity`,
-  `update_activity_frequency`, `describe_rrule`, `get_activity_datetime`
-  (task_service.py); `list_task_resource_links`, `link_task_resource_by_id`,
-  `unlink_task_resource_by_id` (resource_service.py).
-- Committed together with the resource/inventory feature below as
-  `9bc8e51` and pushed to `origin/development`.
+- ✏️ یک منوی ویرایش باز می‌کنه: 🏷️ عنوان، 📋 توضیحات، 📆 تاریخ (با یک تقویم
+  جلالی، `src/app/bot/shared/jalali_calendar.py`)، 🔄 تکرار (متن خام RRULE
+  که قبل از ذخیره اعتبارسنجی می‌شه)، 🟠🔵 کپی (کپی از فعالیت + منابع
+  وصل‌شده بهش). دو state جدید: `EDIT_MENU`/`EDIT_FIELD`.
+- 🧺 یک منوی مدیریت منابع باز می‌کنه: منابع فعلاً وصل‌شده با دکمه‌ی ✖️
+  نمایش داده می‌شن؛ دکمه‌ی 🔍 از قابلیت inline-query تلگرام
+  (`switch_inline_query_current_chat`) برای انتخاب یک منبع موجود استفاده
+  می‌کنه و بعد فقط مقدارش رو به‌صورت متن می‌پرسه. دو state جدید:
+  `RESOURCE_MENU`/`RESOURCE_QTY`.
+- توابع `edit_activity`، `create_resource`، `manage_task_resource` هنوز هم
+  برای مدل زبانی در `tools.json`/`instructions.md` فعالن - فقط همین دو
+  دکمه دیگه ازشون استفاده نمی‌کنن. `/report` و `/resource` (تعریف منبع
+  جدید) همچنان با مدل زبانی کار می‌کنن.
+- هیچ تغییری در ساختار دیتابیس نداشت. توابع سرویس جدید: `copy_activity`،
+  `update_activity_frequency`، `describe_rrule`، `get_activity_datetime`
+  (در task_service.py)؛ `list_task_resource_links`، `link_task_resource_by_id`،
+  `unlink_task_resource_by_id` (در resource_service.py).
+- همراه با ویژگی زیر (سابقه‌ی مصرف منابع) در کامیت `9bc8e51` ثبت و روی
+  `origin/development` پوش شده.
 
-**Resource/inventory tracking feature** (2026-08-13, deployed to `arabot-dev`)
+**قابلیت ردیابی مصرف منابع/انبار** (۱۴۰۵/۰۵/۲۲ - روی `arabot-dev` دیپلوی شده)
 
-Ported from `legacy-bot-version`'s Django resource module, adapted to the
-rrule architecture: `Resource`/`Tag`/`ResourceParity`/`ResourcePrice` (full
-legacy field set), `TaskResource` (template link: activity → resource with a
-fixed signed quantity, set once), `ResourceLog` (dated history row written
-every ✔️ confirm, never on ✖️ skip). Deleting an activity with resource
-history freezes future recurrences instead of hard-deleting (`skip_future_activities`),
-preserving the log. Migrations `ba1771db5274` (initial tables) and
-`0ec19298f798` (fixed `resources.user_id` 32-bit overflow, found live in prod).
+از ماژول resource همون بات جنگوی قدیمی پورت شده و با معماری rrule فعلی
+هماهنگ شده: `Resource`/`Tag`/`ResourceParity`/`ResourcePrice` (کامل مثل
+نسخه‌ی قدیمی)، `TaskResource` (لینک الگو: فعالیت به منبع با یک مقدار
+علامت‌دار ثابت که فقط یک‌بار تنظیم می‌شه)، `ResourceLog` (یک ردیف تاریخ‌دار
+که هر بار با ✔️ تایید فعالیت نوشته می‌شه، نه با ✖️ رد کردنش). حذف فعالیتی
+که سابقه‌ی مصرف منبع داره، دیگه واقعاً حذف نمی‌شه بلکه فقط تکرارهای بعدیش
+متوقف می‌شه (`skip_future_activities`) تا سابقه‌ش از بین نره. مایگریشن‌های
+`ba1771db5274` (ساخت جدول‌های اولیه) و `0ec19298f798` (رفع باگ سرریز عدد
+۳۲‌بیتی در `resources.user_id` که در محیط پروداکشن پیدا شد).
 
-## Up next
+## کار بعدی
 
-(mohsen: write the next task here)
+(محسن: کار بعدی رو اینجا بنویس)
