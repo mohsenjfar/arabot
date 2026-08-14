@@ -66,6 +66,13 @@ async def report_command_handler(update: Update, context: ContextTypes.DEFAULT_T
     await update.message.delete()
     return LLM
 
+async def resource_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    prompt_msg = await update.message.reply_text(RESOURCE_PROMPT.format(user.first_name))
+    context.user_data["prompt_message_id"] = prompt_msg.message_id
+    await update.message.delete()
+    return LLM
+
 async def timer_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
 

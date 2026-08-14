@@ -1,11 +1,13 @@
 import ast
 import json
 import logging
+import re
 
 from telegram import Update
 from telegram.ext import ContextTypes
 from telegram.constants import ParseMode
 
+from src.core.timezone import jalali_parts_to_utc
 from src.services.message_service import (
     insert_message,
     delete_message
@@ -13,6 +15,7 @@ from src.services.message_service import (
 from src.services.task_service import (
     create_activity,
     update_activity,
+    update_activity_frequency,
     notification,
     clear_activity
 )
@@ -21,7 +24,14 @@ from src.services.report_service import (
     report_activities_by_summary,
     get_activity_details_by_summary
 )
-from ..shared.commons import create_task_message
+from src.services.resource_service import (
+    create_resource,
+    manage_task_resource,
+    get_resource_title,
+    link_task_resource_by_id,
+    list_task_resource_links,
+)
+from ..shared.commons import create_task_message, resource_menu_keyboard, format_resource_links_text
 from ..shared.constants import *
 
 from src.llm.llm_client import get_response_from_model
@@ -33,6 +43,8 @@ _TOOL_NAMES = {
     "report_activities_by_time",
     "report_activities_by_summary",
     "show_activity_detail",
+    "create_resource",
+    "manage_task_resource",
 }
 
 
@@ -75,6 +87,14 @@ async def _show_task_result(msg, result):
     text, reply_markup = create_task_message(result)
     await msg.edit_text(text=text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
     notification(result.get("id"))
+
+
+async def _show_message_result(msg, result):
+    """Renders a plain {"status": ..., "message": ...} dict as text - for
+    tools with no task card of their own (create_resource,
+    manage_task_resource)."""
+    message = result.get("message") if isinstance(result, dict) else str(result)
+    await msg.edit_text(message or AI_SERVER_ERROR)
 
 
 async def _show_task_results(context, chat_id, msg, results):
@@ -250,6 +270,18 @@ async def llm_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
                 await _show_task_result(msg, result)
                 result = json.dumps(result, indent=2, ensure_ascii=False)
 
+            elif function_name == "create_resource":
+                result = create_resource(args)
+                await _show_message_result(msg, result)
+                result = json.dumps(result, ensure_ascii=False)
+
+            elif function_name == "manage_task_resource":
+                result = manage_task_resource(args)
+                if editing_task_id and isinstance(result, dict) and result.get("status") == "error":
+                    clear_activity(editing_task_id)
+                await _show_message_result(msg, result)
+                result = json.dumps(result, ensure_ascii=False)
+
             else:
                 logger.warning(f"Unknown function call from model: {function_name}")
                 result = json.dumps({"status": "error", "message": "unknown function"}, ensure_ascii=False)
@@ -266,3 +298,124 @@ async def llm_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
         logger.warning(f"Initial model call failed: {e}")
         await msg.edit_text(AI_SERVER_ERROR)
         return ACTIVITY
+
+
+async def _finish_edit(update, context, result):
+    """Common tail for every manual (✏️) field edit: drop the tracked task_id
+    (this turn is terminal either way) and show the resulting card - or the
+    error text - on the same bubble the field prompt was shown on."""
+    context.user_data.pop("task_id", None)
+    msg = await _get_working_message(update, context)
+    await _show_task_result(msg, result)
+    return ACTIVITY
+
+
+async def _reprompt(update, context, text):
+    """Re-shows `text` on the tracked bubble and stays in EDIT_FIELD - used
+    when the user's reply couldn't be applied (bad rrule, bad time format)
+    so they can just try again without losing their place."""
+    msg = await _get_working_message(update, context)
+    await msg.edit_text(text)
+    context.user_data["prompt_message_id"] = msg.message_id
+    return EDIT_FIELD
+
+
+async def edit_field_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Text reply to one of the manual ✏️ edit-menu prompts (🏷️/📋/🔄, or
+    the ⏰ time-of-day step of 📆) - manual counterpart of edit_activity,
+    calling update_activity/update_activity_frequency directly instead of
+    going through the LLM."""
+    user = update.effective_user
+    task_id = context.user_data.get("task_id")
+    field = context.user_data.get("edit_field")
+    text = (update.message.text or "").strip()
+    await update.message.delete()
+
+    if not task_id or not field:
+        return ACTIVITY
+
+    if field == "summary":
+        result = update_activity({"activity_id": task_id, "user_id": user.id, "new_summary": text})
+        context.user_data.pop("edit_field", None)
+        return await _finish_edit(update, context, result)
+
+    if field == "description":
+        result = update_activity({"activity_id": task_id, "user_id": user.id, "new_description": text})
+        context.user_data.pop("edit_field", None)
+        return await _finish_edit(update, context, result)
+
+    if field == "freq":
+        rrule = None if text in ("بدون تکرار", "-", "لغو تکرار") else text
+        result = update_activity_frequency(task_id, rrule)
+        if isinstance(result, dict) and result.get("status") == "error":
+            return await _reprompt(update, context, EDIT_FREQ_INVALID)
+        context.user_data.pop("edit_field", None)
+        return await _finish_edit(update, context, result)
+
+    if field == "date_time":
+        match = re.fullmatch(r"([01]?\d|2[0-3]):([0-5]\d)", text)
+        if not match:
+            return await _reprompt(update, context, EDIT_DATE_INVALID_TIME)
+        hour, minute = int(match.group(1)), int(match.group(2))
+        jdate = context.user_data.get("edit_calendar_date")
+        new_dt = jalali_parts_to_utc(jdate.year, jdate.month, jdate.day, hour, minute)
+        result = update_activity({"activity_id": task_id, "user_id": user.id, "new_dtstart": new_dt})
+        for key in ("edit_field", "edit_calendar_date", "edit_time"):
+            context.user_data.pop(key, None)
+        return await _finish_edit(update, context, result)
+
+    return ACTIVITY
+
+
+async def resource_selected_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Catches the sentinel message posted when the user picks a resource
+    from the 🔍 inline-query picker inside the 🧺 menu (see
+    resource_inline_query_handler) - never a genuine user message, so it's
+    intercepted here instead of being treated as free text."""
+    user_text = (update.message.text or "").strip()
+    await update.message.delete()
+
+    if not user_text.startswith("__resource_selected__:"):
+        return RESOURCE_MENU
+
+    _, task_id, resource_id = (user_text.split(':') + [None, None])[:3]
+    resource_title = get_resource_title(resource_id)
+    if not resource_title:
+        context.user_data.pop("task_id", None)
+        msg = await _get_working_message(update, context)
+        await msg.edit_text(AI_SERVER_ERROR)
+        return ACTIVITY
+
+    context.user_data["task_id"] = task_id
+    context.user_data["resource_id"] = resource_id
+    msg = await _get_working_message(update, context)
+    await msg.edit_text(RESOURCE_QTY_PROMPT.format(resource_title))
+    context.user_data["prompt_message_id"] = msg.message_id
+    return RESOURCE_QTY
+
+
+async def resource_quantity_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Text reply to RESOURCE_QTY_PROMPT - manual counterpart of
+    manage_task_resource, linking by the exact resource_id the 🔍 picker
+    already resolved instead of fuzzy-matching a typed title."""
+    task_id = context.user_data.get("task_id")
+    resource_id = context.user_data.get("resource_id")
+    text = (update.message.text or "").strip()
+    await update.message.delete()
+
+    try:
+        quantity = float(text)
+    except ValueError:
+        msg = await _get_working_message(update, context)
+        await msg.edit_text(RESOURCE_QTY_INVALID)
+        context.user_data["prompt_message_id"] = msg.message_id
+        return RESOURCE_QTY
+
+    link_task_resource_by_id(task_id, int(resource_id), quantity)
+    context.user_data.pop("resource_id", None)
+
+    links = list_task_resource_links(task_id)
+    msg = await _get_working_message(update, context)
+    await msg.edit_text(format_resource_links_text(links), reply_markup=resource_menu_keyboard(task_id, links))
+    context.user_data["prompt_message_id"] = msg.message_id
+    return RESOURCE_MENU

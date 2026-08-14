@@ -1,5 +1,5 @@
 import logging
-from src.persistence.models import Task
+from src.persistence.models import Task, TaskResource, ResourceLog
 from src.persistence.db import get_session
 from src.core import timezone
 from dateutil.rrule import rrulestr, rruleset
@@ -133,6 +133,10 @@ def complete_activity(task_id):
         session = get_session()
         task = session.query(Task).filter_by(id=task_id).one()
         completed_summary = task.summary
+        # Captured before any of the branches below advance/clear next_date -
+        # this is the occurrence actually being confirmed, and it's what
+        # ResourceLog rows below get dated to.
+        occurrence_date = task.next_date or task.dtstart
 
         if _is_timer_rrule(task.rrule):
             _advance_timer_to_next_block(task, timezone.now().replace(microsecond=0, tzinfo=None))
@@ -141,6 +145,19 @@ def complete_activity(task_id):
         else:
             task.completed = True
             task.next_date = None
+
+        # A recurring Task is a single reused row, so linked resources can't
+        # just flip a completed flag like the old per-occurrence design -
+        # each confirm writes a fresh dated log instead (see TaskResource).
+        links = session.query(TaskResource).filter_by(task_id=task.id).all()
+        for link in links:
+            session.add(ResourceLog(
+                task_id=task.id,
+                resource_id=link.resource_id,
+                quantity=link.quantity,
+                date=occurrence_date,
+                created_at=timezone.now().replace(tzinfo=None),
+            ))
 
         session.commit()
         session.refresh(task)
@@ -245,6 +262,10 @@ def delete_activity(task_id):
     session = None
     try:
         session = get_session()
+        # Only reached when the task has no ResourceLog history (the caller
+        # checks first), but it may still have unconfirmed TaskResource
+        # template links - drop those too or the FK blocks the delete.
+        session.query(TaskResource).filter_by(task_id=task_id).delete(synchronize_session=False)
         session.query(Task).filter_by(id=task_id).delete(synchronize_session=False)
         session.commit()
     except Exception as e:
@@ -257,22 +278,27 @@ def delete_activity(task_id):
             session.close()
 
 def skip_future_activities(task_id):
+    """Stops a task's recurrence without deleting the row - used instead of
+    delete_activity whenever the task has ResourceLog history, since hard
+    deleting it would orphan that history (and violate the FK). Recurring:
+    excludes the pending occurrence and caps the rrule with UNTIL. Non
+    recurrent: just freezes it as completed, same end state as a normal
+    one-off confirm."""
     session = None
     try:
         session = get_session()
         task = session.query(Task).filter_by(id=task_id).one()
-        if task.is_recurrent:
+        if task.is_recurrent and task.next_date:
             exdates = task.exdate or []
             exdates.append(task.next_date.isoformat())
             task.exdate = exdates
             task.rrule += f";UNTIL={timezone.datetime_to_ical(task.next_date)}"
-            task.completed = True
-            session.add(task)
-            session.commit()
-            return f"{task.summary} با موفقیت حذف شد"
-        else:
-            session.query(Task).filter_by(id=task_id).delete(synchronize_session=False)
+
+        task.completed = True
+        task.next_date = None
+        session.add(task)
         session.commit()
+        return f"{task.summary} به‌خاطر سابقه‌ی مصرف منبع پاک نشد، فقط تکرارهای بعدیش متوقف شد"
     except Exception as e:
         if session is not None:
             session.rollback()
@@ -281,6 +307,104 @@ def skip_future_activities(task_id):
     finally:
         if session is not None:
             session.close()
+
+def get_activity_datetime(task_id):
+    """Raw (non-humanized) upcoming datetime for a task - seeds the manual
+    📆 date-edit calendar picker, which needs an actual datetime object to
+    convert to Jalali, not the human-readable string get_activity_details_by_id
+    returns."""
+    session = get_session()
+    try:
+        task = session.query(Task).filter_by(id=task_id).one()
+        return task.next_date or task.dtstart
+    finally:
+        session.close()
+
+_RRULE_FREQ_FA = {
+    "MINUTELY": "دقیقه", "HOURLY": "ساعت", "DAILY": "روز",
+    "WEEKLY": "هفته", "MONTHLY": "ماه", "YEARLY": "سال",
+}
+
+def describe_rrule(rrule: str) -> str:
+    """Small non-LLM fallback for rrule_human when the manual 🔄 frequency
+    editor is used - just describes plain FREQ/INTERVAL, falling back to the
+    raw rrule text for anything fancier (BYDAY, COUNT, ...) that a bare
+    "every N days" phrasing would misrepresent."""
+    parts = dict(p.split("=", 1) for p in rrule.split(";") if "=" in p)
+    unit = _RRULE_FREQ_FA.get(parts.get("FREQ"))
+    extra_fields = set(parts) - {"FREQ", "INTERVAL"}
+    if not unit or extra_fields:
+        return rrule
+    interval = parts.get("INTERVAL", "1")
+    return f"هر {interval} {unit}"
+
+def update_activity_frequency(task_id, rrule):
+    """Manual (non-LLM) 🔄 editor: unlike update_activity/to_task_orm_update
+    (which only ever touches dtstart when a caller explicitly moves it), a
+    rrule change must also recompute next_date - otherwise the currently
+    displayed occurrence stays whatever the OLD rule produced until the next
+    confirm/skip. `rrule` empty/None disables recurrence entirely."""
+    session = get_session()
+    try:
+        task = session.query(Task).filter_by(id=task_id).one()
+
+        if not rrule:
+            task.rrule = None
+            task.rrule_human = None
+            task.is_recurrent = False
+            task.completed = False
+            task.next_date = task.dtstart
+        else:
+            task.rrule = rrule
+            task.rrule_human = describe_rrule(rrule)
+            _apply_recurrence_advance(task)
+
+        session.commit()
+        session.refresh(task)
+        return to_task_response(task).model_dump()
+
+    except Exception as e:
+        session.rollback()
+        logger.warning(f"update_activity_frequency error: {e}")
+        return {"status": "error", "message": "خطا در ویرایش تکرار. لطفا دوباره تلاش کن."}
+
+    finally:
+        session.close()
+
+def copy_activity(task_id):
+    """🟠🔵 manual copy: a fresh Task row starting now, with the same
+    summary/description/rrule and the same TaskResource template links (but
+    obviously no ResourceLog history, since none has happened yet)."""
+    session = get_session()
+    try:
+        task = session.query(Task).filter_by(id=task_id).one()
+        args = {
+            "user_id": task.user_id,
+            "summary": task.summary,
+            "description": task.description,
+            "is_recurrent": task.is_recurrent,
+            "rrule": task.rrule,
+            "rrule_human": task.rrule_human,
+        }
+        links = [(l.resource_id, l.quantity) for l in session.query(TaskResource).filter_by(task_id=task_id).all()]
+    finally:
+        session.close()
+
+    new_task = create_activity(args)
+
+    if links:
+        session = get_session()
+        try:
+            for resource_id, quantity in links:
+                session.add(TaskResource(task_id=new_task["id"], resource_id=resource_id, quantity=quantity))
+            session.commit()
+        except Exception as e:
+            session.rollback()
+            logger.warning(f"copy_activity resource link error: {e}")
+        finally:
+            session.close()
+
+    return new_task
 
 def update_activity(kwargs: dict):
     try:

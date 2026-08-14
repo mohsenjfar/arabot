@@ -48,6 +48,13 @@ def datetime_to_utc(dt: datetime.datetime):
 def combine(jdt: jdatetime.date, t: jdatetime.time) -> jdatetime.datetime:
     return jdatetime.datetime.combine(jdt,t)
 
+def jalali_parts_to_utc(year: int, month: int, day: int, hour: int, minute: int) -> datetime.datetime:
+    """Builds a naive-UTC datetime (matching how Task.dtstart/next_date are
+    stored) from Jalali date/time parts - used by the manual 📆 date-edit
+    calendar picker, which works entirely in Jalali."""
+    jdt = jdatetime.datetime(year, month, day, hour, minute, tzinfo=DEFAULT_LOCAL_TZ)
+    return to_utc(jdt)
+
 def jdate_to_str(jdt: jdatetime.date) -> str:
     if not isinstance(jdt, jdatetime.date):
         raise TypeError("Input must be jdatetime.date")

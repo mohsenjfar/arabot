@@ -18,14 +18,16 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 from telegram.ext import (
-    Application, 
+    Application,
     ConversationHandler,
-    PicklePersistence, 
+    InlineQueryHandler,
+    PicklePersistence,
     JobQueue,
 )
 
 from .shared.commons import check_and_send_tasks
 from .handlers.conversation_handlers import main_conversation
+from .handlers.query_handlers import resource_inline_query_handler
 
 END = ConversationHandler.END
 
@@ -60,6 +62,10 @@ def main() -> None:
         )
 
     application.add_handler(main_conversation)
+    # Inline queries (the 🔍 resource picker in the 🧺 flow) arrive as their
+    # own Update type, outside main_conversation's message/callback states -
+    # requires inline mode enabled for the bot via @BotFather (/setinline).
+    application.add_handler(InlineQueryHandler(resource_inline_query_handler))
 
     logger.info("Start polling...")
 

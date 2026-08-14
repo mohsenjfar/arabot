@@ -10,7 +10,10 @@ from telegram.ext import (
 
 from .message_handlers import (
     create_activity_message_handler,
-    llm_message_handler
+    llm_message_handler,
+    edit_field_message_handler,
+    resource_selected_message_handler,
+    resource_quantity_message_handler,
 )
 
 from .command_handlers import (
@@ -19,16 +22,24 @@ from .command_handlers import (
     help_command_handler,
     stop_command_handler,
     report_command_handler,
-    timer_command_handler
+    timer_command_handler,
+    resource_command_handler
 )
 
 from .query_handlers import (
     complete_activity_query_handler,
     edit_activity_query_handler,
+    edit_menu_field_query_handler,
+    edit_menu_back_query_handler,
+    edit_menu_copy_query_handler,
+    calendar_query_handler,
     skip_activity_query_handler,
     delete_activity_query_handler,
     confirm_delete_activity_query_handler,
     clear_activity_query_handler,
+    resource_activity_query_handler,
+    resource_remove_query_handler,
+    resource_back_query_handler,
     cancel_query_handler
 )
 
@@ -46,6 +57,7 @@ main_conversation = ConversationHandler(
             CommandHandler("help", help_command_handler),
             CommandHandler("report", report_command_handler),
             CommandHandler("timer", timer_command_handler),
+            CommandHandler("resource", resource_command_handler),
             CommandHandler("stop", stop_command_handler),
             MessageHandler(filters.TEXT & ~filters.COMMAND, create_activity_message_handler),
             CallbackQueryHandler(complete_activity_query_handler, pattern="^complete:"),
@@ -53,11 +65,30 @@ main_conversation = ConversationHandler(
             CallbackQueryHandler(delete_activity_query_handler, pattern="^delete:"),
             CallbackQueryHandler(confirm_delete_activity_query_handler, pattern="^confirm_delete:"),
             CallbackQueryHandler(edit_activity_query_handler, pattern="^edit:"),
-            CallbackQueryHandler(clear_activity_query_handler, pattern="^clear:")
+            CallbackQueryHandler(clear_activity_query_handler, pattern="^clear:"),
+            CallbackQueryHandler(resource_activity_query_handler, pattern="^resource:")
         ],
         LLM: [
             MessageHandler(filters.TEXT & ~filters.COMMAND, llm_message_handler),
-        ]
+        ],
+        EDIT_MENU: [
+            CallbackQueryHandler(edit_menu_field_query_handler, pattern="^editfield:"),
+            CallbackQueryHandler(edit_menu_copy_query_handler, pattern="^editcopy$"),
+            CallbackQueryHandler(edit_menu_back_query_handler, pattern="^editback$"),
+        ],
+        EDIT_FIELD: [
+            CallbackQueryHandler(calendar_query_handler, pattern="^caldate:"),
+            CallbackQueryHandler(edit_menu_back_query_handler, pattern="^editback$"),
+            MessageHandler(filters.TEXT & ~filters.COMMAND, edit_field_message_handler),
+        ],
+        RESOURCE_MENU: [
+            CallbackQueryHandler(resource_remove_query_handler, pattern="^resrm:"),
+            CallbackQueryHandler(resource_back_query_handler, pattern="^resback$"),
+            MessageHandler(filters.TEXT & ~filters.COMMAND, resource_selected_message_handler),
+        ],
+        RESOURCE_QTY: [
+            MessageHandler(filters.TEXT & ~filters.COMMAND, resource_quantity_message_handler),
+        ],
     },
     fallbacks=[
         CommandHandler("start", restart_command_handler),

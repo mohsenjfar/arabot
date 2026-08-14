@@ -91,6 +91,87 @@
   {
     "type": "function",
     "function": {
+      "name": "create_resource",
+      "description": "Define a new resource (a pantry/inventory item, e.g. rice, oil) that activities can later be linked to increase or decrease. Only call after user confirmation of the final values.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "description": "The title of the resource."
+          },
+          "unit": {
+            "type": "string",
+            "description": "The unit the resource is stored/measured in (e.g. 'کیلوگرم', 'عدد')."
+          },
+          "min_pantry": {
+            "type": "integer",
+            "description": "Minimum amount that should always be kept in stock, if the user mentions one."
+          },
+          "tags": {
+            "type": "array",
+            "items": {"type": "string"},
+            "description": "Optional tags/categories for the resource."
+          },
+          "price": {
+            "type": "number",
+            "description": "Optional current price per unit, if the user gives one."
+          },
+          "consumption_unit": {
+            "type": "string",
+            "description": "Optional second unit the resource is actually consumed/reported in, if different from `unit` (requires conversion_factor)."
+          },
+          "conversion_factor": {
+            "type": "number",
+            "description": "Optional conversion factor from `unit` to `consumption_unit`. Only relevant if consumption_unit is given."
+          },
+          "user_confirmed": {
+            "type": "boolean",
+            "description": "Must be set to true only after the user has explicitly confirmed all the values."
+          }
+        },
+        "required": ["title", "user_confirmed"],
+        "additionalProperties": false
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "manage_task_resource",
+      "description": "Link a resource to a specific activity so that every time that activity is confirmed (✔️), the given quantity is automatically logged against the resource - or update/remove an existing link. Only call after user confirmation.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "activity_id": {
+            "type": "string",
+            "description": "The unique identifier of the activity this resource is linked to."
+          },
+          "resource_title": {
+            "type": "string",
+            "description": "The exact or partial title of the resource (must already exist, created via create_resource)."
+          },
+          "quantity": {
+            "type": "number",
+            "description": "Signed amount moved every time the activity is confirmed: positive increases the resource, negative decreases it. Required unless `remove` is true."
+          },
+          "remove": {
+            "type": "boolean",
+            "description": "Set to true to unlink this resource from the activity instead of adding/updating it."
+          },
+          "user_confirmed": {
+            "type": "boolean",
+            "description": "Must be set to true only after the user has explicitly confirmed the change."
+          }
+        },
+        "required": ["activity_id", "resource_title", "user_confirmed"],
+        "additionalProperties": false
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
       "name": "show_activity_detail",
       "description": "Retrieve the full, detailed information for a single, specific activity identified by its exact or partial title. Use this when the user asks to view all details of one particular activity, and it is expected to return details for one specific task.",
       "parameters": {

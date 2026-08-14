@@ -11,6 +11,7 @@ from src.services.report_service import (
     get_activity_details_by_id,
     get_due_tasks
 )
+from .constants import RESOURCE_LINKS_HEADER, RESOURCE_EMPTY
 
 logger = logging.getLogger(__name__)
 
@@ -35,11 +36,55 @@ def create_task_message(task_details):
             InlineKeyboardButton('🗑️',callback_data=f'delete:{task_id}'),
             InlineKeyboardButton('✏️',callback_data=f'edit:{task_id}'),
             InlineKeyboardButton('🧹',callback_data=f'clear:{task_id}'),
+            InlineKeyboardButton('🧺',callback_data=f'resource:{task_id}'),
         ]
     ]
     if task_details.get('is_recurrent'):
         buttons[0].insert(2, InlineKeyboardButton('✖️',callback_data=f'skip:{task_id}'),)
     return '\n'.join(lines), InlineKeyboardMarkup(buttons)
+
+def edit_menu_keyboard():
+    """Manual (button-driven, no LLM) edit menu opened by ✏️ - mirrors the
+    legacy Django bot's task_edit_keyboard. task_id itself isn't embedded in
+    these callback_data: it's stashed in user_data by edit_activity_query_handler
+    when the menu is opened, since this whole submenu only ever applies to
+    that one task."""
+    buttons = [
+        [
+            InlineKeyboardButton('🏷️', callback_data='editfield:summary'),
+            InlineKeyboardButton('📋', callback_data='editfield:description'),
+            InlineKeyboardButton('📆', callback_data='editfield:date'),
+            InlineKeyboardButton('🔄', callback_data='editfield:freq'),
+        ],
+        [
+            InlineKeyboardButton('🔙', callback_data='editback'),
+            InlineKeyboardButton('🟠🔵', callback_data='editcopy'),
+        ]
+    ]
+    return InlineKeyboardMarkup(buttons)
+
+def format_resource_links_text(links):
+    if not links:
+        return RESOURCE_EMPTY
+    lines = [RESOURCE_LINKS_HEADER]
+    for link in links:
+        direction = "افزایش" if link["quantity"] > 0 else "کاهش"
+        lines.append(f"- {link['title']}: {direction} {abs(link['quantity'])} {link['unit']}")
+    return "\n".join(lines)
+
+def resource_menu_keyboard(task_id, links):
+    """Manual (button-driven, no LLM) resource-link menu opened by 🧺: one
+    ✖️ row per linked resource, plus 🔍 (inline-query picker, see
+    resource_inline_query_handler) to add another and 🔙 to go back."""
+    buttons = [
+        [InlineKeyboardButton(f"✖️ {link['title']}", callback_data=f"resrm:{link['resource_id']}")]
+        for link in links
+    ]
+    buttons.append([
+        InlineKeyboardButton('🔍', switch_inline_query_current_chat=f'resource:{task_id}:'),
+        InlineKeyboardButton('🔙', callback_data='resback'),
+    ])
+    return InlineKeyboardMarkup(buttons)
 
 async def task_details_view(update: Update, context: ContextTypes.DEFAULT_TYPE):
     task_id = context.user_data.get("task_id")
