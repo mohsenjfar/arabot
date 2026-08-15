@@ -36,7 +36,7 @@
 - دستور جدید دیپلوی از این به بعد: `docker build -t arabot:latest .` بعد
   `docker compose up -d --force-recreate arabot-dev` (بدون نیاز به
   `IMAGE_TAG=...`).
-- هنوز کامیت نشده - منتظر تایید محسن.
+- کامیت `cee7b27`، روی `origin/development` پوش شده.
 
 - کیبورد ثابت (`main_reply_keyboard`) حالا روی /start، /restart، /help و
   /stop هم ست می‌شه (قبلاً فقط start/restart).
