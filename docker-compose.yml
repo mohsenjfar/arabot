@@ -2,6 +2,7 @@ services:
 
   arabot:
     image: arabot:latest
+    build: .
     restart: unless-stopped
     container_name: arabot
     volumes:
