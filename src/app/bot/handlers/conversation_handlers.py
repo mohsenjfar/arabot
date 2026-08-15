@@ -14,6 +14,9 @@ from .message_handlers import (
     edit_field_message_handler,
     resource_selected_message_handler,
     resource_quantity_message_handler,
+    resource_view_selected_message_handler,
+    resource_field_message_handler,
+    tag_selected_message_handler,
 )
 
 from .command_handlers import (
@@ -32,6 +35,8 @@ from .query_handlers import (
     edit_menu_field_query_handler,
     edit_menu_back_query_handler,
     edit_menu_copy_query_handler,
+    edit_menu_delete_query_handler,
+    edit_menu_description_ai_query_handler,
     calendar_query_handler,
     skip_activity_query_handler,
     delete_activity_query_handler,
@@ -40,6 +45,13 @@ from .query_handlers import (
     resource_activity_query_handler,
     resource_remove_query_handler,
     resource_back_query_handler,
+    resource_home_add_query_handler,
+    resource_detail_query_handler,
+    resource_back_to_detail_query_handler,
+    resource_price_add_query_handler,
+    resource_price_delete_query_handler,
+    resource_delete_confirm_query_handler,
+    resource_delete_cancel_query_handler,
     cancel_query_handler
 )
 
@@ -74,10 +86,13 @@ main_conversation = ConversationHandler(
         EDIT_MENU: [
             CallbackQueryHandler(edit_menu_field_query_handler, pattern="^editfield:"),
             CallbackQueryHandler(edit_menu_copy_query_handler, pattern="^editcopy$"),
+            CallbackQueryHandler(edit_menu_delete_query_handler, pattern="^editdelete$"),
+            CallbackQueryHandler(confirm_delete_activity_query_handler, pattern="^confirm_delete:"),
             CallbackQueryHandler(edit_menu_back_query_handler, pattern="^editback$"),
         ],
         EDIT_FIELD: [
             CallbackQueryHandler(calendar_query_handler, pattern="^caldate:"),
+            CallbackQueryHandler(edit_menu_description_ai_query_handler, pattern="^editdescai$"),
             CallbackQueryHandler(edit_menu_back_query_handler, pattern="^editback$"),
             MessageHandler(filters.TEXT & ~filters.COMMAND, edit_field_message_handler),
         ],
@@ -88,6 +103,29 @@ main_conversation = ConversationHandler(
         ],
         RESOURCE_QTY: [
             MessageHandler(filters.TEXT & ~filters.COMMAND, resource_quantity_message_handler),
+        ],
+        RESOURCE_HOME: [
+            CallbackQueryHandler(resource_home_add_query_handler, pattern="^resnew$"),
+            MessageHandler(filters.TEXT & ~filters.COMMAND, resource_view_selected_message_handler),
+        ],
+        RESOURCE_DETAIL: [
+            CallbackQueryHandler(resource_detail_query_handler, pattern="^(reshome|resunit|respantry|resparity|resprice|restag|resdelete)$"),
+        ],
+        RESOURCE_FIELD: [
+            MessageHandler(filters.TEXT & ~filters.COMMAND, resource_field_message_handler),
+        ],
+        RESOURCE_TAG: [
+            CallbackQueryHandler(resource_back_to_detail_query_handler, pattern="^resback_detail$"),
+            MessageHandler(filters.TEXT & ~filters.COMMAND, tag_selected_message_handler),
+        ],
+        RESOURCE_PRICE: [
+            CallbackQueryHandler(resource_price_add_query_handler, pattern="^resprice_add$"),
+            CallbackQueryHandler(resource_price_delete_query_handler, pattern="^resprice_del$"),
+            CallbackQueryHandler(resource_back_to_detail_query_handler, pattern="^resback_detail$"),
+        ],
+        RESOURCE_DELETE: [
+            CallbackQueryHandler(resource_delete_confirm_query_handler, pattern="^confirm_resdelete$"),
+            CallbackQueryHandler(resource_delete_cancel_query_handler, pattern="^cancel_resdelete$"),
         ],
     },
     fallbacks=[

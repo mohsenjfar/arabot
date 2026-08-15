@@ -30,8 +30,27 @@ from src.services.resource_service import (
     get_resource_title,
     link_task_resource_by_id,
     list_task_resource_links,
+    get_resource_details,
+    update_resource_unit,
+    update_resource_min_pantry,
+    add_resource_price,
+    list_resource_prices,
+    set_resource_parity,
+    toggle_resource_tag,
+    add_new_resource_tag,
+    get_tag_title,
 )
-from ..shared.commons import create_task_message, resource_menu_keyboard, format_resource_links_text
+from ..shared.commons import (
+    create_task_message,
+    resource_menu_keyboard,
+    format_resource_links_text,
+    resource_details_text,
+    resource_details_keyboard,
+    resource_tag_text,
+    resource_tag_keyboard,
+    resource_price_text,
+    resource_price_keyboard,
+)
 from ..shared.constants import *
 
 from src.llm.llm_client import get_response_from_model
@@ -243,6 +262,16 @@ async def llm_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
 
             if function_name == "edit_activity":
                 result = update_activity(args)
+                # update_activity (the generic mapper-based path) only ever
+                # recomputes next_date when new_dtstart is given - a rrule
+                # change needs update_activity_frequency's recompute too, or
+                # the displayed next occurrence goes stale until the next
+                # confirm/skip (same bug fixed earlier for the manual path).
+                if isinstance(result, dict) and result.get("status") != "error":
+                    if args.get("new_rrule") is not None:
+                        result = update_activity_frequency(args["activity_id"], args["new_rrule"], args.get("new_rrule_human"))
+                    elif args.get("make_recurrent") is False:
+                        result = update_activity_frequency(args["activity_id"], None)
                 if editing_task_id and isinstance(result, dict) and result.get("status") == "error":
                     clear_activity(editing_task_id)
                 await _show_task_result(msg, result)
@@ -310,21 +339,22 @@ async def _finish_edit(update, context, result):
     return ACTIVITY
 
 
-async def _reprompt(update, context, text):
-    """Re-shows `text` on the tracked bubble and stays in EDIT_FIELD - used
-    when the user's reply couldn't be applied (bad rrule, bad time format)
+async def _reprompt(update, context, text, state=EDIT_FIELD):
+    """Re-shows `text` on the tracked bubble and stays in `state` - used
+    when the user's reply couldn't be applied (bad time format, bad number)
     so they can just try again without losing their place."""
     msg = await _get_working_message(update, context)
     await msg.edit_text(text)
     context.user_data["prompt_message_id"] = msg.message_id
-    return EDIT_FIELD
+    return state
 
 
 async def edit_field_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Text reply to one of the manual ✏️ edit-menu prompts (🏷️/📋/🔄, or
-    the ⏰ time-of-day step of 📆) - manual counterpart of edit_activity,
-    calling update_activity/update_activity_frequency directly instead of
-    going through the LLM."""
+    """Text reply to one of the manual ✏️ edit-menu prompts (🏷️/📋, or the
+    ⏰ time-of-day step of 📆) - manual counterpart of edit_activity, calling
+    update_activity directly instead of going through the LLM. 🔄 frequency
+    and the optional 🤖 description path hand off to the LLM instead (see
+    query_handlers.py)."""
     user = update.effective_user
     task_id = context.user_data.get("task_id")
     field = context.user_data.get("edit_field")
@@ -341,14 +371,6 @@ async def edit_field_message_handler(update: Update, context: ContextTypes.DEFAU
 
     if field == "description":
         result = update_activity({"activity_id": task_id, "user_id": user.id, "new_description": text})
-        context.user_data.pop("edit_field", None)
-        return await _finish_edit(update, context, result)
-
-    if field == "freq":
-        rrule = None if text in ("بدون تکرار", "-", "لغو تکرار") else text
-        result = update_activity_frequency(task_id, rrule)
-        if isinstance(result, dict) and result.get("status") == "error":
-            return await _reprompt(update, context, EDIT_FREQ_INVALID)
         context.user_data.pop("edit_field", None)
         return await _finish_edit(update, context, result)
 
@@ -419,3 +441,127 @@ async def resource_quantity_message_handler(update: Update, context: ContextType
     await msg.edit_text(format_resource_links_text(links), reply_markup=resource_menu_keyboard(task_id, links))
     context.user_data["prompt_message_id"] = msg.message_id
     return RESOURCE_MENU
+
+
+async def resource_view_selected_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Catches the sentinel message posted when the user picks a resource
+    from the 🔍 inline-query picker on the /resource home menu (see
+    resource_inline_query_handler's `resdef:` prefix) - shows its details."""
+    user_text = (update.message.text or "").strip()
+    await update.message.delete()
+
+    if not user_text.startswith("__resource_view__:"):
+        return RESOURCE_HOME
+
+    _, resource_id = user_text.split(':')
+    resource_id = int(resource_id)
+    resource = get_resource_details(resource_id)
+    if not resource:
+        msg = await _get_working_message(update, context)
+        await msg.edit_text(RESOURCE_NOT_FOUND)
+        return RESOURCE_HOME
+
+    context.user_data["resource_id"] = resource_id
+    msg = await _get_working_message(update, context)
+    await msg.edit_text(resource_details_text(resource), reply_markup=resource_details_keyboard())
+    context.user_data["prompt_message_id"] = msg.message_id
+    return RESOURCE_DETAIL
+
+
+async def resource_field_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Text reply to one of the manual /resource field prompts (title on
+    create, unit, pantry, price, or the two-step parity) - manual
+    counterpart of create_resource, no LLM involved."""
+    user = update.effective_user
+    field = context.user_data.get("resource_field")
+    resource_id = context.user_data.get("resource_id")
+    text = (update.message.text or "").strip()
+    await update.message.delete()
+
+    if field == "new_title":
+        result = create_resource({"user_id": user.id, "title": text})
+        if result.get("status") == "error":
+            msg = await _get_working_message(update, context)
+            await msg.edit_text(result.get("message") or AI_SERVER_ERROR)
+            context.user_data["prompt_message_id"] = msg.message_id
+            return RESOURCE_FIELD
+        context.user_data["resource_id"] = result["id"]
+        context.user_data.pop("resource_field", None)
+        resource = get_resource_details(result["id"])
+        msg = await _get_working_message(update, context)
+        await msg.edit_text(resource_details_text(resource), reply_markup=resource_details_keyboard())
+        return RESOURCE_DETAIL
+
+    if field == "unit":
+        update_resource_unit(resource_id, text)
+        context.user_data.pop("resource_field", None)
+        return await _finish_resource_field(update, context, resource_id)
+
+    if field == "pantry":
+        try:
+            min_pantry = int(float(text))
+        except ValueError:
+            return await _reprompt(update, context, RESOURCE_PANTRY_INVALID, state=RESOURCE_FIELD)
+        update_resource_min_pantry(resource_id, min_pantry)
+        context.user_data.pop("resource_field", None)
+        return await _finish_resource_field(update, context, resource_id)
+
+    if field == "price":
+        try:
+            price = int(float(text))
+        except ValueError:
+            return await _reprompt(update, context, RESOURCE_PRICE_INVALID, state=RESOURCE_FIELD)
+        add_resource_price(resource_id, price)
+        context.user_data.pop("resource_field", None)
+        prices = list_resource_prices(resource_id)
+        msg = await _get_working_message(update, context)
+        await msg.edit_text(resource_price_text(prices), reply_markup=resource_price_keyboard())
+        return RESOURCE_PRICE
+
+    if field == "parity_unit":
+        context.user_data["resource_parity_unit"] = text
+        context.user_data["resource_field"] = "parity_factor"
+        msg = await _get_working_message(update, context)
+        await msg.edit_text(RESOURCE_PARITY_FACTOR_PROMPT)
+        context.user_data["prompt_message_id"] = msg.message_id
+        return RESOURCE_FIELD
+
+    if field == "parity_factor":
+        try:
+            factor = float(text)
+        except ValueError:
+            return await _reprompt(update, context, RESOURCE_PARITY_INVALID, state=RESOURCE_FIELD)
+        consumption_unit = context.user_data.pop("resource_parity_unit", None)
+        set_resource_parity(resource_id, consumption_unit, factor)
+        context.user_data.pop("resource_field", None)
+        return await _finish_resource_field(update, context, resource_id)
+
+    return RESOURCE_HOME
+
+
+async def _finish_resource_field(update, context, resource_id):
+    resource = get_resource_details(resource_id)
+    msg = await _get_working_message(update, context)
+    await msg.edit_text(resource_details_text(resource), reply_markup=resource_details_keyboard())
+    return RESOURCE_DETAIL
+
+
+async def tag_selected_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Catches either the sentinel from the 🔍 tag picker (toggles an
+    existing tag) or plain typed text (creates a new tag and links it) -
+    both re-render the 🗂️ tag view and stay in RESOURCE_TAG."""
+    user_text = (update.message.text or "").strip()
+    resource_id = context.user_data.get("resource_id")
+    await update.message.delete()
+
+    if user_text.startswith("__tag_selected__:"):
+        _, tag_id, _resource_id = user_text.split(':')
+        toggle_resource_tag(resource_id, int(tag_id))
+    elif user_text:
+        add_new_resource_tag(resource_id, user_text)
+
+    resource = get_resource_details(resource_id)
+    msg = await _get_working_message(update, context)
+    await msg.edit_text(resource_tag_text(resource), reply_markup=resource_tag_keyboard(resource_id))
+    context.user_data["prompt_message_id"] = msg.message_id
+    return RESOURCE_TAG

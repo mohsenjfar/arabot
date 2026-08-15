@@ -13,6 +13,7 @@ from telegram import (
 from telegram.constants import ParseMode
 
 from src.core import timezone as tz
+from src.services.message_service import insert_message
 from src.services.task_service import (
     delete_activity,
     clear_activity,
@@ -30,8 +31,28 @@ from src.services.resource_service import (
     search_resources,
     unlink_task_resource_by_id,
     get_resource_title,
+    get_resource_details,
+    list_resource_prices,
+    delete_latest_resource_price,
+    search_tags,
+    get_tag_title,
+    toggle_resource_tag,
+    delete_resource,
 )
-from ..shared.commons import create_task_message, edit_menu_keyboard, resource_menu_keyboard, format_resource_links_text
+from ..shared.commons import (
+    create_task_message,
+    edit_menu_keyboard,
+    resource_menu_keyboard,
+    format_resource_links_text,
+    resource_home_keyboard,
+    resource_details_text,
+    resource_details_keyboard,
+    resource_tag_text,
+    resource_tag_keyboard,
+    resource_price_text,
+    resource_price_keyboard,
+    resource_delete_confirm_keyboard,
+)
 from ..shared.jalali_calendar import calendar_keyboard, shift_month
 from ..shared.constants import *
 
@@ -51,26 +72,32 @@ async def skip_activity_query_handler(update: Update, context: ContextTypes.DEFA
     await query.answer(result)
     await query.message.delete()
 
-async def delete_activity_query_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    task_id = query.data.split(':')[1]
+def _delete_confirm_markup(task_id):
     text = "آیا از حذف این فعالیت اطمینان داری؟"
     buttons = [[
         InlineKeyboardButton('بله',callback_data=f'confirm_delete:{task_id}'),
         InlineKeyboardButton('منصرف شدم',callback_data=f'cancel:{task_id}')
     ]]
-    reply_markup = InlineKeyboardMarkup(buttons)
+    return text, InlineKeyboardMarkup(buttons)
+
+async def delete_activity_query_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    task_id = query.data.split(':')[1]
+    text, reply_markup = _delete_confirm_markup(task_id)
     await query.message.edit_text(text=text, reply_markup=reply_markup)
 
 async def confirm_delete_activity_query_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     task_id = query.data.split(':')[1]
+    for key in ("task_id", "edit_field", "edit_calendar_date", "edit_time"):
+        context.user_data.pop(key, None)
     if task_has_resource_history(task_id):
         result = skip_future_activities(task_id)
     else:
         result = delete_activity(task_id)
     await query.answer(result)
     await query.message.delete()
+    return ACTIVITY
 
 async def clear_activity_query_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -87,6 +114,15 @@ async def edit_activity_query_handler(update: Update, context: ContextTypes.DEFA
     task_id = query.data.split(':')[1]
     context.user_data["task_id"] = task_id
     await query.message.edit_text(EDIT_MENU_TEXT, reply_markup=edit_menu_keyboard())
+    return EDIT_MENU
+
+async def edit_menu_delete_query_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """🗑️ inside the ✏️ menu - same confirm prompt as the old top-level 🗑️
+    button, just reading task_id from user_data instead of callback_data."""
+    query = update.callback_query
+    task_id = context.user_data.get("task_id")
+    text, reply_markup = _delete_confirm_markup(task_id)
+    await query.message.edit_text(text=text, reply_markup=reply_markup)
     return EDIT_MENU
 
 async def edit_menu_back_query_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -126,13 +162,20 @@ async def edit_menu_field_query_handler(update: Update, context: ContextTypes.DE
 
     if field == "description":
         context.user_data["edit_field"] = "description"
-        await query.message.edit_text(EDIT_DESCRIPTION_PROMPT.format(task.get("description") or "-"), parse_mode=ParseMode.HTML)
+        ai_button = InlineKeyboardMarkup([[InlineKeyboardButton('🤖', callback_data='editdescai')]])
+        await query.message.edit_text(
+            EDIT_DESCRIPTION_PROMPT.format(task.get("description") or "-"),
+            reply_markup=ai_button,
+            parse_mode=ParseMode.HTML,
+        )
         return EDIT_FIELD
 
     if field == "freq":
-        context.user_data["edit_field"] = "freq"
-        await query.message.edit_text(EDIT_FREQ_PROMPT.format(task.get("rrule_human") or "-"), parse_mode=ParseMode.HTML)
-        return EDIT_FIELD
+        user = update.effective_user
+        insert_message(user.id, 'user', EDIT_FREQ_AI_PROMPT.format(task))
+        insert_message(user.id, 'assistant', EDIT_FREQ_AI_RESPONSE.format(user.first_name))
+        await query.message.edit_text(EDIT_FREQ_AI_RESPONSE.format(user.first_name))
+        return LLM
 
     if field == "date":
         context.user_data["edit_field"] = "date"
@@ -147,6 +190,19 @@ async def edit_menu_field_query_handler(update: Update, context: ContextTypes.DE
         return EDIT_FIELD
 
     return EDIT_MENU
+
+async def edit_menu_description_ai_query_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """🤖 next to the 📋 description prompt - hands off to the LLM (edit_activity)
+    instead of the manual text path, for drafting/discussing the description."""
+    query = update.callback_query
+    user = update.effective_user
+    task_id = context.user_data.get("task_id")
+    task = get_activity_details_by_id(task_id)
+    context.user_data.pop("edit_field", None)
+    insert_message(user.id, 'user', EDIT_DESCRIPTION_AI_PROMPT.format(task))
+    insert_message(user.id, 'assistant', EDIT_DESCRIPTION_AI_RESPONSE.format(user.first_name))
+    await query.message.edit_text(EDIT_DESCRIPTION_AI_RESPONSE.format(user.first_name))
+    return LLM
 
 async def _finalize_date_edit(query, context, task_id):
     jdate = context.user_data["edit_calendar_date"]
@@ -235,36 +291,174 @@ async def resource_back_query_handler(update: Update, context: ContextTypes.DEFA
     await query.message.edit_text(text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
     return ACTIVITY
 
+def _show_resource_home(query):
+    return query.message.edit_text(RESOURCE_HOME_TEXT, reply_markup=resource_home_keyboard())
+
+def _show_resource_details(query, resource):
+    return query.message.edit_text(resource_details_text(resource), reply_markup=resource_details_keyboard())
+
+async def resource_home_add_query_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """➕ on the /resource home menu - prompts for a title only, same
+    bare-then-fill-in-details pattern the ✏️ edit menu already uses."""
+    query = update.callback_query
+    context.user_data["resource_field"] = "new_title"
+    context.user_data["prompt_message_id"] = query.message.message_id
+    await query.message.edit_text(RESOURCE_ADD_PROMPT)
+    return RESOURCE_FIELD
+
+async def resource_detail_query_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Dispatches the per-resource details/edit menu (🗂️/📏/🔄/🔙/🗑️/🫙/🧾) -
+    mirrors the legacy bot's resource_keyboard callbacks."""
+    query = update.callback_query
+    action = query.data
+    resource_id = context.user_data.get("resource_id")
+
+    if action == "reshome":
+        context.user_data.pop("resource_id", None)
+        await _show_resource_home(query)
+        return RESOURCE_HOME
+
+    if action == "resunit":
+        context.user_data["resource_field"] = "unit"
+        context.user_data["prompt_message_id"] = query.message.message_id
+        await query.message.edit_text(RESOURCE_UNIT_PROMPT)
+        return RESOURCE_FIELD
+
+    if action == "respantry":
+        context.user_data["resource_field"] = "pantry"
+        context.user_data["prompt_message_id"] = query.message.message_id
+        await query.message.edit_text(RESOURCE_PANTRY_PROMPT)
+        return RESOURCE_FIELD
+
+    if action == "resparity":
+        context.user_data["resource_field"] = "parity_unit"
+        context.user_data["prompt_message_id"] = query.message.message_id
+        await query.message.edit_text(RESOURCE_PARITY_UNIT_PROMPT)
+        return RESOURCE_FIELD
+
+    if action == "resprice":
+        prices = list_resource_prices(resource_id)
+        await query.message.edit_text(resource_price_text(prices), reply_markup=resource_price_keyboard())
+        return RESOURCE_PRICE
+
+    if action == "restag":
+        resource = get_resource_details(resource_id)
+        await query.message.edit_text(resource_tag_text(resource), reply_markup=resource_tag_keyboard(resource_id))
+        return RESOURCE_TAG
+
+    if action == "resdelete":
+        await query.message.edit_text(RESOURCE_DELETE_CONFIRM_TEXT, reply_markup=resource_delete_confirm_keyboard())
+        return RESOURCE_DELETE
+
+    return RESOURCE_DETAIL
+
+async def resource_back_to_detail_query_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """🔙 from the 🗂️ tag view or 🧾 price view - back to the resource details."""
+    query = update.callback_query
+    resource_id = context.user_data.get("resource_id")
+    resource = get_resource_details(resource_id)
+    await _show_resource_details(query, resource)
+    return RESOURCE_DETAIL
+
+async def resource_price_add_query_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    context.user_data["resource_field"] = "price"
+    context.user_data["prompt_message_id"] = query.message.message_id
+    await query.message.edit_text(RESOURCE_PRICE_PROMPT)
+    return RESOURCE_FIELD
+
+async def resource_price_delete_query_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    resource_id = context.user_data.get("resource_id")
+    delete_latest_resource_price(resource_id)
+    prices = list_resource_prices(resource_id)
+    await query.message.edit_text(resource_price_text(prices), reply_markup=resource_price_keyboard())
+    return RESOURCE_PRICE
+
+async def resource_delete_confirm_query_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    resource_id = context.user_data.pop("resource_id", None)
+    title = get_resource_title(resource_id)
+    delete_resource(resource_id)
+    await query.answer(RESOURCE_DELETED.format(title))
+    await _show_resource_home(query)
+    return RESOURCE_HOME
+
+async def resource_delete_cancel_query_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    resource_id = context.user_data.get("resource_id")
+    resource = get_resource_details(resource_id)
+    await _show_resource_details(query, resource)
+    return RESOURCE_DETAIL
+
 async def resource_inline_query_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     inline_query = update.inline_query
     parts = (inline_query.query or "").split(':', 2)
-    if len(parts) < 2 or parts[0] != "resource":
-        await inline_query.answer([])
+    prefix = parts[0]
+
+    if prefix == "resource" and len(parts) >= 2:
+        task_id = parts[1]
+        search_text = parts[2] if len(parts) > 2 else ""
+        resources = search_resources(inline_query.from_user.id, search_text)
+        results = [
+            InlineQueryResultArticle(
+                id=str(resource["id"]),
+                title=resource["title"],
+                description=resource.get("unit") or "",
+                # Posted as a real chat message when picked - the RESOURCE_MENU
+                # state's message handler intercepts this sentinel (see
+                # resource_selected_message_handler).
+                input_message_content=InputTextMessageContent(
+                    f"__resource_selected__:{task_id}:{resource['id']}"
+                ),
+            )
+            for resource in resources
+        ]
+        await inline_query.answer(results, cache_time=0)
         return
 
-    task_id = parts[1]
-    search_text = parts[2] if len(parts) > 2 else ""
-    resources = search_resources(inline_query.from_user.id, search_text)
+    if prefix == "resdef":
+        search_text = parts[1] if len(parts) > 1 else ""
+        resources = search_resources(inline_query.from_user.id, search_text)
+        results = [
+            InlineQueryResultArticle(
+                id=str(resource["id"]),
+                title=resource["title"],
+                description=resource.get("unit") or "",
+                # Posted when browsing/editing a resource from /resource -
+                # RESOURCE_HOME's message handler intercepts this sentinel.
+                input_message_content=InputTextMessageContent(f"__resource_view__:{resource['id']}"),
+            )
+            for resource in resources
+        ]
+        await inline_query.answer(results, cache_time=0)
+        return
 
-    results = [
-        InlineQueryResultArticle(
-            id=str(resource["id"]),
-            title=resource["title"],
-            description=resource.get("unit") or "",
-            # Posted as a real chat message when picked - the RESOURCE_MENU
-            # state's message handler intercepts this sentinel (see
-            # resource_selected_message_handler).
-            input_message_content=InputTextMessageContent(
-                f"__resource_selected__:{task_id}:{resource['id']}"
-            ),
-        )
-        for resource in resources
-    ]
-    await inline_query.answer(results, cache_time=0)
+    if prefix == "restag" and len(parts) >= 2:
+        resource_id = parts[1]
+        search_text = parts[2] if len(parts) > 2 else ""
+        tags = search_tags(search_text)
+        results = [
+            InlineQueryResultArticle(
+                id=str(tag["id"]),
+                title=tag["title"],
+                # Posted from the 🗂️ tag view - RESOURCE_TAG's message
+                # handler intercepts this sentinel (see tag_selected_message_handler).
+                input_message_content=InputTextMessageContent(f"__tag_selected__:{tag['id']}:{resource_id}"),
+            )
+            for tag in tags
+        ]
+        await inline_query.answer(results, cache_time=0)
+        return
+
+    await inline_query.answer([])
 
 async def cancel_query_handler(update, context):
     query = update.callback_query
     task_id = query.data.split(':')[1]
+    for key in ("task_id", "edit_field", "edit_calendar_date", "edit_time"):
+        context.user_data.pop(key, None)
     task_details = get_activity_details_by_id(task_id)
     text, reply_markup = create_task_message(task_details)
     await query.message.edit_text(text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
+    return ACTIVITY

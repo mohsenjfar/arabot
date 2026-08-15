@@ -50,7 +50,7 @@ def create_resource(args):
             ))
 
         session.commit()
-        return {"status": "ok", "message": f"منبع «{title}» با موفقیت ثبت شد"}
+        return {"status": "ok", "message": f"منبع «{title}» با موفقیت ثبت شد", "id": resource.id}
 
     except Exception as e:
         session.rollback()
@@ -197,6 +197,217 @@ def unlink_task_resource_by_id(task_id, resource_id):
     except Exception as e:
         session.rollback()
         logger.warning(f"unlink_task_resource_by_id error: {e}")
+        raise
+    finally:
+        session.close()
+
+
+def get_resource_details(resource_id):
+    """Backs the manual /resource details view (title/unit/min_pantry/tags/parity),
+    the resource-side counterpart of report_service.get_activity_details_by_id."""
+    session = get_session()
+    try:
+        resource = session.query(Resource).filter_by(id=resource_id).first()
+        if not resource:
+            return None
+        return {
+            "id": resource.id,
+            "title": resource.title,
+            "unit": resource.unit,
+            "min_pantry": resource.min_pantry,
+            "tags": [tag.title for tag in resource.tags],
+            "consumption_unit": resource.parity.consumption_unit if resource.parity else None,
+            "conversion_factor": resource.parity.conversion_factor if resource.parity else None,
+        }
+    finally:
+        session.close()
+
+
+def update_resource_unit(resource_id, unit):
+    session = get_session()
+    try:
+        session.query(Resource).filter_by(id=resource_id).update({"unit": unit})
+        session.commit()
+    except Exception as e:
+        session.rollback()
+        logger.warning(f"update_resource_unit error: {e}")
+        raise
+    finally:
+        session.close()
+
+
+def update_resource_min_pantry(resource_id, min_pantry):
+    session = get_session()
+    try:
+        session.query(Resource).filter_by(id=resource_id).update({"min_pantry": min_pantry})
+        session.commit()
+    except Exception as e:
+        session.rollback()
+        logger.warning(f"update_resource_min_pantry error: {e}")
+        raise
+    finally:
+        session.close()
+
+
+def list_resource_prices(resource_id, limit=5):
+    session = get_session()
+    try:
+        prices = (
+            session.query(ResourcePrice)
+            .filter_by(resource_id=resource_id)
+            .order_by(ResourcePrice.date.desc())
+            .limit(limit)
+            .all()
+        )
+        return [
+            {"price": p.price, "date": timezone.human_readable(p.date) if p.date else ""}
+            for p in prices
+        ]
+    finally:
+        session.close()
+
+
+def add_resource_price(resource_id, price):
+    session = get_session()
+    try:
+        session.add(ResourcePrice(resource_id=resource_id, price=price, date=timezone.now().replace(tzinfo=None)))
+        session.commit()
+    except Exception as e:
+        session.rollback()
+        logger.warning(f"add_resource_price error: {e}")
+        raise
+    finally:
+        session.close()
+
+
+def delete_latest_resource_price(resource_id):
+    session = get_session()
+    try:
+        latest = (
+            session.query(ResourcePrice)
+            .filter_by(resource_id=resource_id)
+            .order_by(ResourcePrice.date.desc())
+            .first()
+        )
+        if latest:
+            session.delete(latest)
+            session.commit()
+    except Exception as e:
+        session.rollback()
+        logger.warning(f"delete_latest_resource_price error: {e}")
+        raise
+    finally:
+        session.close()
+
+
+def set_resource_parity(resource_id, consumption_unit, conversion_factor):
+    session = get_session()
+    try:
+        parity = session.query(ResourceParity).filter_by(resource_id=resource_id).first()
+        if parity:
+            parity.consumption_unit = consumption_unit
+            parity.conversion_factor = conversion_factor
+        else:
+            session.add(ResourceParity(
+                resource_id=resource_id,
+                consumption_unit=consumption_unit,
+                conversion_factor=conversion_factor,
+            ))
+        session.commit()
+    except Exception as e:
+        session.rollback()
+        logger.warning(f"set_resource_parity error: {e}")
+        raise
+    finally:
+        session.close()
+
+
+def search_tags(query_text="", limit=20):
+    """Backs the 🔍 inline-query tag picker in the 🗂️ resource-tag view."""
+    session = get_session()
+    try:
+        q = session.query(Tag)
+        if query_text:
+            q = q.filter(Tag.title.contains(query_text))
+        tags = q.order_by(Tag.title).limit(limit).all()
+        return [{"id": t.id, "title": t.title} for t in tags]
+    finally:
+        session.close()
+
+
+def get_tag_title(tag_id):
+    session = get_session()
+    try:
+        tag = session.query(Tag).filter_by(id=tag_id).first()
+        return tag.title if tag else None
+    finally:
+        session.close()
+
+
+def toggle_resource_tag(resource_id, tag_id):
+    """Adds the tag if the resource doesn't have it yet, removes it if it
+    does - matching the legacy bot's tap-to-toggle tag picker."""
+    session = get_session()
+    try:
+        resource = session.query(Resource).filter_by(id=resource_id).one()
+        tag = session.query(Tag).filter_by(id=tag_id).one()
+        added = tag not in resource.tags
+        if added:
+            resource.tags.append(tag)
+        else:
+            resource.tags.remove(tag)
+        session.commit()
+        return added
+    except Exception as e:
+        session.rollback()
+        logger.warning(f"toggle_resource_tag error: {e}")
+        raise
+    finally:
+        session.close()
+
+
+def add_new_resource_tag(resource_id, title):
+    """Typing a tag title (instead of picking one via 🔍) creates it - get-or-create
+    by title, same as create_resource's inline tag handling - and links it."""
+    session = get_session()
+    try:
+        resource = session.query(Resource).filter_by(id=resource_id).one()
+        title = title.strip()
+        tag = session.query(Tag).filter_by(title=title).first()
+        if not tag:
+            tag = Tag(title=title)
+            session.add(tag)
+        if tag not in resource.tags:
+            resource.tags.append(tag)
+        session.commit()
+    except Exception as e:
+        session.rollback()
+        logger.warning(f"add_new_resource_tag error: {e}")
+        raise
+    finally:
+        session.close()
+
+
+def delete_resource(resource_id):
+    """Hard delete - matches the legacy bot exactly (confirmed with mohsen):
+    unlike activities, a resource with ResourceLog history is NOT frozen,
+    it's fully removed along with that history. Cascades child rows first
+    since none of the FKs are ON DELETE CASCADE."""
+    session = get_session()
+    try:
+        session.query(ResourceLog).filter_by(resource_id=resource_id).delete(synchronize_session=False)
+        session.query(TaskResource).filter_by(resource_id=resource_id).delete(synchronize_session=False)
+        session.query(ResourcePrice).filter_by(resource_id=resource_id).delete(synchronize_session=False)
+        session.query(ResourceParity).filter_by(resource_id=resource_id).delete(synchronize_session=False)
+        resource = session.query(Resource).filter_by(id=resource_id).first()
+        if resource:
+            resource.tags = []
+            session.flush()
+            session.delete(resource)
+        session.commit()
+    except Exception as e:
+        session.rollback()
+        logger.warning(f"delete_resource error: {e}")
         raise
     finally:
         session.close()

@@ -11,6 +11,7 @@ from src.services.user_service import (
     activate_user
 )
 from src.services.task_service import create_activity
+from ..shared.commons import resource_home_keyboard
 from ..shared.constants import *
 from src.llm.llm_client import get_help_response_from_model
 
@@ -67,11 +68,12 @@ async def report_command_handler(update: Update, context: ContextTypes.DEFAULT_T
     return LLM
 
 async def resource_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = update.effective_user
-    prompt_msg = await update.message.reply_text(RESOURCE_PROMPT.format(user.first_name))
+    """Manual (button-driven, no LLM) resource management - see resource_service.py
+    and the RESOURCE_* states in conversation_handlers.py."""
+    prompt_msg = await update.message.reply_text(RESOURCE_HOME_TEXT, reply_markup=resource_home_keyboard())
     context.user_data["prompt_message_id"] = prompt_msg.message_id
     await update.message.delete()
-    return LLM
+    return RESOURCE_HOME
 
 async def timer_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user

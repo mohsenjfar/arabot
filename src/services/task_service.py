@@ -338,12 +338,15 @@ def describe_rrule(rrule: str) -> str:
     interval = parts.get("INTERVAL", "1")
     return f"هر {interval} {unit}"
 
-def update_activity_frequency(task_id, rrule):
-    """Manual (non-LLM) 🔄 editor: unlike update_activity/to_task_orm_update
+def update_activity_frequency(task_id, rrule, rrule_human=None):
+    """Called by both the 🔄 LLM-driven edit_activity path and (for disabling
+    recurrence) update_activity: unlike update_activity/to_task_orm_update
     (which only ever touches dtstart when a caller explicitly moves it), a
     rrule change must also recompute next_date - otherwise the currently
     displayed occurrence stays whatever the OLD rule produced until the next
-    confirm/skip. `rrule` empty/None disables recurrence entirely."""
+    confirm/skip. `rrule` empty/None disables recurrence entirely.
+    `rrule_human` lets a caller (the LLM) supply its own phrasing; falls back
+    to describe_rrule's crude FREQ/INTERVAL-only description otherwise."""
     session = get_session()
     try:
         task = session.query(Task).filter_by(id=task_id).one()
@@ -356,7 +359,7 @@ def update_activity_frequency(task_id, rrule):
             task.next_date = task.dtstart
         else:
             task.rrule = rrule
-            task.rrule_human = describe_rrule(rrule)
+            task.rrule_human = rrule_human or describe_rrule(rrule)
             _apply_recurrence_advance(task)
 
         session.commit()
