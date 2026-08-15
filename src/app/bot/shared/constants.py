@@ -21,7 +21,7 @@ MAX_TELEGRAM_MSG = 3500
 # a tap sends this exact text as a plain message, recognized and dispatched
 # to the matching /command handler by message_handlers.command_keyboard_message_handler.
 CMD_LABEL_REPORT = "/report"
-CMD_LABEL_RESOURCE = "/resources"
+CMD_LABEL_RESOURCE = "/resource"
 CMD_LABEL_ARCHIVE = "/archive"
 CMD_LABEL_TAGS = "/tags"
 CMD_LABEL_TIMER = "/timer"

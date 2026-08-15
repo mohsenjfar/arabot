@@ -5,7 +5,7 @@
 ## پشته‌ی فنی
 
 - **python-telegram-bot** (`ConversationHandler` + `JobQueue`) برای مدیریت مکالمه و جاب‌های زمان‌بندی‌شده
-- **SQLAlchemy** روی **Supabase Postgres**، با **Alembic** برای مدیریت تغییرات اسکیما (`src/persistence/migrations`). چون `target_metadata` در `env.py` تنظیم نشده، `alembic revision --autogenerate` تغییرات مدل را خودکار تشخیص نمی‌دهد و هر migration باید دستی نوشته شود. سرویس `arabot-mig` در `docker-compose.yml` این migrationها را روی هر دیپلوی (پیش از بالا آمدن اپ) اجرا می‌کند.
+- **SQLAlchemy** روی **Supabase Postgres**، با **Alembic** برای مدیریت تغییرات اسکیما (`src/persistence/migrations`). چون `target_metadata` در `env.py` تنظیم نشده، `alembic revision --autogenerate` تغییرات مدل را خودکار تشخیص نمی‌دهد و هر migration باید دستی نوشته شود. migrationها دستی و مستقیم روی Supabase اجرا می‌شوند (`alembic -c src/persistence/alembic.ini upgrade head` با `DATABASE_URL` واقعی)، پیش از پوش کردن کد و ری‌استارت کانتینر - هیچ سرویس یا پایپ‌لاین جداگانه‌ای این کار را خودکار انجام نمی‌دهد.
 - مدل زبانی از طریق **NVIDIA NIM** (سازگار با OpenAI SDK)، فقط برای مسیرهای مشخص (ویرایش/گزارش/منابع)
 - تقویم و نمایش تاریخ بر اساس **جلالی**، ذخیره‌سازی داخلی به‌صورت UTC ساده (naive)
 
@@ -141,8 +141,10 @@
 ## دیپلوی
 
 - `Dockerfile` یک ایمیج ساده‌ی Python می‌سازد؛ `CMD ["python", "-m", "src.app.bot.main"]` — خود کانتینر اپ هیچ migration ای اجرا نمی‌کند.
-- `docker-compose.yml` سه سرویس دارد: `arabot-mig` (اجرای `alembic upgrade head`، یک‌باره)، `arabot-dev`، `arabot-prod`.
-- پایپ‌لاین CI (`.gitea/workflows/deploy.yml`) پیش از بالا آوردن اپ، `docker compose run --rm arabot-mig` را اجرا می‌کند — یعنی تغییرات اسکیما با هر دیپلوی روی `main`/`development` خودکار روی Supabase اعمال می‌شوند. چون `target_metadata` ست نشده، هر migration باید دستی نوشته شود (فایل جدید در `src/persistence/migrations/versions/`، با `down_revision` درست).
+- `docker-compose.yml` فقط یک سرویس دارد: `arabot-dev`، روی ایمیج `arabot:latest`. بدون CI/CD خودکار (Gitea قبلاً استفاده می‌شد، دیگر نه) - دیپلوی دستی است:
+  1. اگر مایگریشن جدیدی هست، دستی روی Supabase اجرا می‌شود (بخش «پشته‌ی فنی» بالا).
+  2. `docker build -t arabot:latest .`
+  3. `docker compose up -d --force-recreate arabot-dev`
 
 ## نکات و محدودیت‌های شناخته‌شده
 

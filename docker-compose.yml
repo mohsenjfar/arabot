@@ -1,43 +1,13 @@
 services:
 
-  arabot-mig:
-    image: arabot:mig
-    working_dir: /ara/src/persistence
-    command: ["alembic", "-c", "alembic.ini", "upgrade", "head"]
-    environment:
-      - DATABASE_URL
-    networks:
-      - external-net
-
-
   arabot-dev:
-    image: arabot:dev
+    image: arabot:latest
     restart: unless-stopped
     container_name: arabot-dev
     volumes:
       - ara_data_dev:/ara/src/persistence/states
     env_file:
       - .env
-    environment:
-      - DATABASE_URL
-      - BOT_TOKEN
-      - BOT_URL
-      - AI_TOKEN
-      - AI_URL
-      - AI_MODEL
-      - TIMEZONE
-      - CALENDAR
-      - BOT_PERSISTENCE_URL
-    networks:
-      - external-net
-
-
-  arabot-prod:
-    image: arabot:prod
-    restart: unless-stopped
-    container_name: arabot-prod
-    volumes:
-      - ara_data_prod:/ara/src/persistence/states
     environment:
       - DATABASE_URL
       - BOT_TOKEN
@@ -59,4 +29,3 @@ networks:
 
 volumes:
   ara_data_dev:
-  ara_data_prod:
