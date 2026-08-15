@@ -214,9 +214,9 @@ def main_reply_keyboard():
     state is cleared. Tapping a button sends its label as plain text; see
     message_handlers.command_keyboard_message_handler for the dispatch."""
     rows = [
-        [CMD_LABEL_REPORT, CMD_LABEL_RESOURCE],
-        [CMD_LABEL_ARCHIVE, CMD_LABEL_TAGS],
-        [CMD_LABEL_TIMER, CMD_LABEL_HELP],
+        [CMD_LABEL_TIMER, CMD_LABEL_REPORT],
+        [CMD_LABEL_TAGS, CMD_LABEL_RESOURCE],
+        [CMD_LABEL_ARCHIVE, CMD_LABEL_HELP],
         [CMD_LABEL_STOP],
     ]
     return ReplyKeyboardMarkup(rows, resize_keyboard=True)
