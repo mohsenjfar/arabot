@@ -45,7 +45,11 @@ async def restart_command_handler(update: Update, context: ContextTypes.DEFAULT_
 
 async def help_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
-    msg = await update.message.reply_text(PROCESSING)
+    # Telegram only lets a ReplyKeyboardMarkup be set on a genuinely new
+    # sendMessage, never via editMessageText - attach it here on the initial
+    # send, since the later edit_text below can't touch it anyway (it's
+    # already persisted client-side by then).
+    msg = await update.message.reply_text(PROCESSING, reply_markup=main_reply_keyboard())
     await update.message.delete()
     try:
         await msg.edit_text(get_help_response_from_model(user))
@@ -56,13 +60,13 @@ async def help_command_handler(update: Update, context: ContextTypes.DEFAULT_TYP
 
 async def stop_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
-    await update.message.reply_text(STOP_BOT.format(user.first_name))
+    await update.message.reply_text(STOP_BOT.format(user.first_name), reply_markup=main_reply_keyboard())
     await update.message.delete()
     return ConversationHandler.END
 
 async def report_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
-    prompt_msg = await update.message.reply_text(REPORT_PROMPT.format(user.first_name))
+    prompt_msg = await update.message.reply_text(REPORT_PROMPT.format(user.first_name), reply_markup=main_reply_keyboard())
     context.user_data["prompt_message_id"] = prompt_msg.message_id
     await update.message.delete()
     return LLM
