@@ -6,6 +6,36 @@
 
 ## آخرین کارهای انجام‌شده
 
+**انتخاب یه فعالیت تکمیل‌شده از /archive حالا کارت کامل با یه دکمه ✅ برای از سر گرفتنه** (۱۴۰۵/۰۵/۲۵ - روی `arabot` دیپلوی شده)
+
+محسن نظرش رو در مورد رفتار قبلی عوض کرد: به‌جای متن ساده‌ی اطلاعاتی
+(«قبلا تکمیل شده»)، انتخاب یه فعالیت تکمیل‌شده از `/archive` باید همون
+فرمت کارت فعالیت رو نشون بده (عنوان/توضیحات/تکرار)، ولی به‌جای ردیف دکمه‌های
+معمولی (✔️/✏️/🧹/🧺) فقط یه دکمه‌ی ✅ داشته باشه - زدنش فعالیت رو به
+«انجام‌نشده» برمی‌گردونه.
+
+- `commons.py`: تابع جدید `completed_task_message(task_details)` - همون
+  چیدمان `create_task_message` ولی بدون خط 📆 (چون completed یعنی
+  next_date خالیه) و فقط یه دکمه‌ی `✅` با `callback_data=f'reactivate:{task_id}'`.
+- `task_service.py`: تابع جدید `reactivate_activity(task_id)` -
+  `completed=False` می‌کنه؛ اگه rrule داره دوباره `calculate_next_date`
+  صداش می‌زنه (مثل هر تایید عادی)، و اگه rrule تموم‌شده بود (نتیجه None)
+  مثل غیرفعال‌کردن تکرار برمی‌گرده به `dtstart`؛ برای غیرتکراری هم مستقیم
+  `next_date = dtstart`. `unarchive_activity` ساده‌تر شد - همیشه
+  `to_task_response` برمی‌گردونه (چه آرشیو بوده چه فقط completed)، و caller
+  از روی فیلد `completed` تصمیم می‌گیره کدوم فرمت رو رندر کنه.
+- `query_handlers.py`: `reactivate_activity_query_handler` جدید
+  (`^reactivate:` تو استیت ACTIVITY) - بعد از فعال‌سازی، کارت رو با دکمه‌های
+  عادی (`create_task_message`) دوباره رندر می‌کنه.
+- `message_handlers.py::archive_selected_message_handler`: به‌جای متن
+  اطلاعاتی، حالا `completed_task_message` رو نشون می‌ده وقتی `result["completed"]`
+  true باشه.
+- ثابت مرده‌ی `ARCHIVE_COMPLETED_INFO` (از تصمیم قبلی که عوض شد) حذف شد.
+- تست شد: کامپایل، build، اسموک‌تست سرویس (`reactivate_activity` روی یه
+  فعالیت غیرتکراری و یه فعالیت تکراری با rrule تمام‌شده - هر دو next_date
+  درست می‌گیرن)، import کامل بات (۱۶ استیت)، دیپلوی روی `arabot`، لاگ تمیز.
+- هنوز کامیت نشده - منتظر تایید محسن.
+
 **فعالیت‌های تکمیل‌شده هم داخل /archive نمایش داده می‌شن (با تیک ✅)** (۱۴۰۵/۰۵/۲۵ - روی `arabot` دیپلوی شده)
 
 `Task` از قبل یه فیلد `completed` داشت (وقتی یه فعالیت غیرتکراری تایید بشه،
