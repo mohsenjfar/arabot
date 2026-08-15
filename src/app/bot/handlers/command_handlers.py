@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from telegram import Update, ReplyKeyboardRemove
 from telegram.ext import (
@@ -18,7 +19,7 @@ from src.llm.llm_client import get_help_response_from_model
 logger = logging.getLogger(__name__)
 
 
-async def _show_menu(update: Update, context: ContextTypes.DEFAULT_TYPE, greeting: str):
+async def _show_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Shows the command keyboard alongside a "pick from the menu" prompt -
     tracked so _clear_menu can collapse both once an option is picked."""
     msg = await update.message.reply_text(MENU_SELECT_PROMPT, reply_markup=main_reply_keyboard())
@@ -75,7 +76,7 @@ async def help_command_handler(update: Update, context: ContextTypes.DEFAULT_TYP
     msg = await update.message.reply_text(PROCESSING)
     await update.message.delete()
     try:
-        await msg.edit_text(get_help_response_from_model(user))
+        await msg.edit_text(await asyncio.to_thread(get_help_response_from_model, user))
     except Exception as e:
         await msg.edit_text(AI_SERVER_ERROR)
         logger.warning(e)

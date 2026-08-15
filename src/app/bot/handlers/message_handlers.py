@@ -1,3 +1,4 @@
+import asyncio
 import ast
 import json
 import logging
@@ -228,7 +229,7 @@ async def llm_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
     message_id = insert_message(user.id, 'user', user_text)
 
     try:
-        response = get_response_from_model(user, limit=10)
+        response = await asyncio.to_thread(get_response_from_model, user, limit=10)
         message = response.choices[0].message
         calls = [(tc.function.name, tc.function.arguments) for tc in (message.tool_calls or [])]
 
