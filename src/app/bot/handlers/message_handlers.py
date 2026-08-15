@@ -595,6 +595,14 @@ async def archive_selected_message_handler(update: Update, context: ContextTypes
     _, task_id = user_text.split(':')
     result = unarchive_activity(task_id)
     msg = await _get_working_message(update, context)
+
+    if isinstance(result, dict) and result.get("status") == "completed_info":
+        text = ARCHIVE_COMPLETED_INFO.format(result["summary"])
+        if result.get("description"):
+            text += f"\n\n{result['description']}"
+        await msg.edit_text(text)
+        return ACTIVITY
+
     await _show_task_result(msg, result)
     return ACTIVITY
 

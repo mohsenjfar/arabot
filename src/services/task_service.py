@@ -327,12 +327,16 @@ def archive_activity(task_id):
         session.close()
 
 def unarchive_activity(task_id):
-    """Picking an archived activity from the /archive inline-query browser
-    restores it - selecting it out of the archive is *the* action, there's
-    no separate confirm step."""
+    """Picking an item from the /archive inline-query browser - if it's
+    actually archived, restores it (selecting it out of the archive is *the*
+    action, no separate confirm step). If it's only there because it's
+    completed (not archived), there's no "next_date" to restore it into, so
+    this just returns its info instead of mutating anything."""
     session = get_session()
     try:
         task = session.query(Task).filter_by(id=task_id).one()
+        if not task.archived:
+            return {"status": "completed_info", "summary": task.summary, "description": task.description}
         task.archived = False
         session.commit()
         session.refresh(task)
@@ -345,14 +349,22 @@ def unarchive_activity(task_id):
         session.close()
 
 def list_archived_activities(user_id, search_text=""):
-    """Backs the /archive command's 🔍 inline-query browser."""
+    """Backs the /archive command's 🔍 inline-query browser - both archived
+    and completed activities show up here (see resource_inline_query_handler's
+    `archive:` prefix for the ✅ badge distinguishing the latter)."""
     session = get_session()
     try:
-        q = session.query(Task).filter(Task.user_id == user_id, Task.archived == True)
+        q = session.query(Task).filter(
+            Task.user_id == user_id,
+            (Task.archived == True) | (Task.completed == True),
+        )
         if search_text:
             q = q.filter(Task.summary.contains(search_text))
         tasks = q.order_by(Task.summary).limit(20).all()
-        return [{"id": t.id, "summary": t.summary, "description": t.description} for t in tasks]
+        return [
+            {"id": t.id, "summary": t.summary, "description": t.description, "completed": t.completed}
+            for t in tasks
+        ]
     finally:
         session.close()
 

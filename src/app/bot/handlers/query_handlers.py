@@ -539,7 +539,9 @@ async def resource_inline_query_handler(update: Update, context: ContextTypes.DE
         results = [
             InlineQueryResultArticle(
                 id=str(activity["id"]),
-                title=activity["summary"],
+                # ✅ marks activities that are here because they're completed,
+                # not archived - distinguishes the two at a glance in the list.
+                title=("✅ " + activity["summary"]) if activity.get("completed") else activity["summary"],
                 description=activity.get("description") or "",
                 # Posted from /archive's 🔍 picker - ARCHIVE_BROWSE's message
                 # handler intercepts this sentinel (see archive_selected_message_handler).

@@ -60,11 +60,15 @@ RESOURCE_DELETE_CONFIRM_TEXT = "توجه! این کار منبع و کل ساب�
 RESOURCE_DELETED = "منبع «{}» حذف شد"
 RESOURCE_NOT_FOUND = "این منبع پیدا نشد"
 
-# /archive - browsing archived activities is inline-query only (see the 🗃️
-# button in the ✏️ menu for archiving one).
-ARCHIVE_PROMPT_TEXT = "برای دیدن فعالیت‌های آرشیو شده 🔍 رو بزن - انتخاب هرکدوم از آرشیو خارجش می‌کنه"
+# /archive - browsing archived + completed activities is inline-query only
+# (see the 🗃️ button in the ✏️ menu for archiving one). Completed ones are
+# marked with a ✅ prefix on their inline-result title; picking an archived
+# one restores it, picking a completed one just shows info (nothing to
+# restore it into - see unarchive_activity).
+ARCHIVE_PROMPT_TEXT = "برای دیدن فعالیت‌های آرشیو شده و تکمیل‌شده 🔍 رو بزن - انتخاب یه فعالیت آرشیو شده اون رو از آرشیو خارج می‌کنه"
 ARCHIVE_DONE = "«{}» آرشیو شد"
 ARCHIVE_RESTORED = "«{}» از آرشیو خارج شد"
+ARCHIVE_COMPLETED_INFO = "✅ «{}» قبلا تکمیل شده"
 ARCHIVE_NOT_FOUND = "این فعالیت پیدا نشد"
 
 # /tags - manual tag management, mirrors legacy-bot-version's tag_conversation.
