@@ -24,7 +24,7 @@
   همین رفتار رو خواست (بدون گام تایید جدا).
   state جدید: `ARCHIVE_BROWSE`. توابع جدید در task_service.py:
   `archive_activity`، `unarchive_activity`، `list_archived_activities`.
-- هنوز کامیت نشده - منتظر تایید محسن.
+- کامیت `3545e7b`، روی `origin/development` پوش شده.
 
 **تکمیل منوی ✏️ و مدیریت کاملا دستی منابع (`/resource`)** (۱۴۰۵/۰۵/۲۳ - روی `arabot-dev` دیپلوی شده)
 
