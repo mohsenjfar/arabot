@@ -323,7 +323,9 @@ def set_resource_parity(resource_id, consumption_unit, conversion_factor):
 
 
 def search_tags(query_text="", limit=20):
-    """Backs the 🔍 inline-query tag picker in the 🗂️ resource-tag view."""
+    """Backs the 🔍 inline-query tag picker in both the 🗂️ resource-tag view
+    (toggle on a resource) and /tags (pick one to rename/delete). Tags are
+    global (no user_id), same as the legacy bot."""
     session = get_session()
     try:
         q = session.query(Tag)
@@ -340,6 +342,61 @@ def get_tag_title(tag_id):
     try:
         tag = session.query(Tag).filter_by(id=tag_id).first()
         return tag.title if tag else None
+    finally:
+        session.close()
+
+
+def create_tag(title):
+    """Backs the ➕ step of /tags - get-or-create by title (not linked to any
+    resource), unlike add_new_resource_tag which also links it to one."""
+    session = get_session()
+    try:
+        title = title.strip()
+        tag = session.query(Tag).filter_by(title=title).first()
+        if not tag:
+            tag = Tag(title=title)
+            session.add(tag)
+        session.commit()
+        session.refresh(tag)
+        return tag.id
+    except Exception as e:
+        session.rollback()
+        logger.warning(f"create_tag error: {e}")
+        raise
+    finally:
+        session.close()
+
+
+def rename_tag(tag_id, new_title):
+    session = get_session()
+    try:
+        session.query(Tag).filter_by(id=tag_id).update({"title": new_title})
+        session.commit()
+    except Exception as e:
+        session.rollback()
+        logger.warning(f"rename_tag error: {e}")
+        raise
+    finally:
+        session.close()
+
+
+def delete_tag(tag_id):
+    """Immediate delete, no confirm step - matches the legacy bot's
+    edit_tag_query_callbacks exactly. Clears the resource_tag association
+    rows first (via the Tag.resources backref) so the delete doesn't
+    violate the secondary table's FKs."""
+    session = get_session()
+    try:
+        tag = session.query(Tag).filter_by(id=tag_id).first()
+        if tag:
+            tag.resources = []
+            session.flush()
+            session.delete(tag)
+        session.commit()
+    except Exception as e:
+        session.rollback()
+        logger.warning(f"delete_tag error: {e}")
+        raise
     finally:
         session.close()
 

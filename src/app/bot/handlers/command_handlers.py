@@ -11,7 +11,7 @@ from src.services.user_service import (
     activate_user
 )
 from src.services.task_service import create_activity
-from ..shared.commons import resource_home_keyboard, archive_browse_keyboard
+from ..shared.commons import resource_home_keyboard, archive_browse_keyboard, tags_home_keyboard, main_reply_keyboard
 from ..shared.constants import *
 from src.llm.llm_client import get_help_response_from_model
 
@@ -23,7 +23,7 @@ async def start_command_handler(update: Update, context: ContextTypes.DEFAULT_TY
 
     if not user_exists(user.id):
         insert_user(user.id, user.first_name)
-        await update.message.reply_text(USER_INITIAL_GREETING.format(user.first_name))
+        await update.message.reply_text(USER_INITIAL_GREETING.format(user.first_name), reply_markup=main_reply_keyboard())
         await update.message.delete()
         return ACTIVITY
 
@@ -33,13 +33,13 @@ async def start_command_handler(update: Update, context: ContextTypes.DEFAULT_TY
         return ConversationHandler.END
 
     activate_user(user.id)
-    await update.message.reply_text(USER_COMEBACK_GREETING.format(user.first_name))
+    await update.message.reply_text(USER_COMEBACK_GREETING.format(user.first_name), reply_markup=main_reply_keyboard())
     await update.message.delete()
     return ACTIVITY
 
 async def restart_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
-    await update.message.reply_text(RESTART_MESSAGE.format(user.first_name))
+    await update.message.reply_text(RESTART_MESSAGE.format(user.first_name), reply_markup=main_reply_keyboard())
     await update.message.delete()
     return ACTIVITY
 
@@ -82,6 +82,14 @@ async def archive_command_handler(update: Update, context: ContextTypes.DEFAULT_
     context.user_data["prompt_message_id"] = prompt_msg.message_id
     await update.message.delete()
     return ARCHIVE_BROWSE
+
+async def tags_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Manual (button-driven, no LLM) tag management - mirrors legacy-bot-version's
+    tag_conversation.py."""
+    prompt_msg = await update.message.reply_text(TAGS_HOME_TEXT, reply_markup=tags_home_keyboard())
+    context.user_data["prompt_message_id"] = prompt_msg.message_id
+    await update.message.delete()
+    return TAG_HOME
 
 async def timer_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user

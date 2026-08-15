@@ -3,7 +3,7 @@ from html import escape
 
 from telegram import Update
 from telegram.ext import ContextTypes
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup
 from telegram.constants import ParseMode
 
 from src.services.task_service import notification
@@ -11,7 +11,17 @@ from src.services.report_service import (
     get_activity_details_by_id,
     get_due_tasks
 )
-from .constants import RESOURCE_LINKS_HEADER, RESOURCE_EMPTY
+from .constants import (
+    RESOURCE_LINKS_HEADER,
+    RESOURCE_EMPTY,
+    CMD_LABEL_REPORT,
+    CMD_LABEL_RESOURCE,
+    CMD_LABEL_ARCHIVE,
+    CMD_LABEL_TAGS,
+    CMD_LABEL_TIMER,
+    CMD_LABEL_HELP,
+    CMD_LABEL_STOP,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -171,6 +181,45 @@ def resource_delete_confirm_keyboard():
         InlineKeyboardButton('منصرف شدم', callback_data='cancel_resdelete'),
     ]]
     return InlineKeyboardMarkup(buttons)
+
+def tags_home_keyboard():
+    """/tags landing menu - mirrors the legacy bot's insert_new_tag_keyboard:
+    🔍 browse/search existing tags via inline query, ➕ add a new one, 🔙 back."""
+    buttons = [[
+        InlineKeyboardButton('🔍', switch_inline_query_current_chat='tagmgmt:'),
+        InlineKeyboardButton('➕', callback_data='tagnew'),
+        InlineKeyboardButton('🔙', callback_data='tagcancel'),
+    ]]
+    return InlineKeyboardMarkup(buttons)
+
+def tag_edit_keyboard():
+    """Mirrors the legacy bot's edit_tag_keyboard: 🔙 back to the list, 🗑️
+    delete immediately (no confirm step, matching legacy exactly)."""
+    buttons = [[
+        InlineKeyboardButton('🔙', callback_data='tagback'),
+        InlineKeyboardButton('🗑️', callback_data='tagdelete'),
+    ]]
+    return InlineKeyboardMarkup(buttons)
+
+def tag_rename_confirm_keyboard():
+    buttons = [[
+        InlineKeyboardButton('لغو', callback_data='tagrenamecancel'),
+        InlineKeyboardButton('تایید', callback_data='tagrenameconfirm'),
+    ]]
+    return InlineKeyboardMarkup(buttons)
+
+def main_reply_keyboard():
+    """Persistent bottom keyboard listing every top-level command with an
+    emoji label - set once on /start, stays until Telegram's client-side
+    state is cleared. Tapping a button sends its label as plain text; see
+    message_handlers.command_keyboard_message_handler for the dispatch."""
+    rows = [
+        [CMD_LABEL_REPORT, CMD_LABEL_RESOURCE],
+        [CMD_LABEL_ARCHIVE, CMD_LABEL_TAGS],
+        [CMD_LABEL_TIMER, CMD_LABEL_HELP],
+        [CMD_LABEL_STOP],
+    ]
+    return ReplyKeyboardMarkup(rows, resize_keyboard=True)
 
 async def task_details_view(update: Update, context: ContextTypes.DEFAULT_TYPE):
     task_id = context.user_data.get("task_id")

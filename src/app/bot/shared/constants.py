@@ -11,8 +11,22 @@ RESOURCE_TAG = chr(9)
 RESOURCE_PRICE = chr(10)
 RESOURCE_DELETE = chr(11)
 ARCHIVE_BROWSE = chr(12)
+TAG_HOME = chr(13)
+TAG_EDIT = chr(14)
+TAG_CONFIRM = chr(15)
 
 MAX_TELEGRAM_MSG = 3500
+
+# Persistent reply-keyboard button labels (see commons.main_reply_keyboard) -
+# a tap sends this exact text as a plain message, recognized and dispatched
+# to the matching /command handler by message_handlers.command_keyboard_message_handler.
+CMD_LABEL_REPORT = "📊 گزارش"
+CMD_LABEL_RESOURCE = "🧺 منابع"
+CMD_LABEL_ARCHIVE = "🗃️ آرشیو"
+CMD_LABEL_TAGS = "🏷️ تگ‌ها"
+CMD_LABEL_TIMER = "⏲ تایمر"
+CMD_LABEL_HELP = "❓ راهنما"
+CMD_LABEL_STOP = "🛑 توقف"
 
 USER_INITIAL_GREETING = "سلام {} عزیز به بازوی آرا خوش جهت مشاهده راهنمای استفاده از بازو /help رو لمس کن"
 USER_COMEBACK_GREETING = 'سلام {} عزیز خوشحالم که دوباره می بینمت'
@@ -50,6 +64,14 @@ ARCHIVE_PROMPT_TEXT = "برای دیدن فعالیت‌های آرشیو شده
 ARCHIVE_DONE = "«{}» آرشیو شد"
 ARCHIVE_RESTORED = "«{}» از آرشیو خارج شد"
 ARCHIVE_NOT_FOUND = "این فعالیت پیدا نشد"
+
+# /tags - manual tag management, mirrors legacy-bot-version's tag_conversation.
+TAGS_HOME_TEXT = "لیست تگ‌های منابع اینجاست، برای افزودن یکی جدید ➕ رو بزن یا با 🔍 یکی رو برای ویرایش پیدا کن"
+TAG_ADD_PROMPT = "عنوان تگ جدید رو بفرست"
+TAG_EDIT_TEXT = "عنوان: {}\n\nبرای تغییر عنوان، عنوان جدید رو بفرست یا 🗑️ رو بزن"
+TAG_RENAME_CONFIRM = "عنوان از «{}» به «{}» تغییر کنه؟"
+TAG_DELETED = "تگ «{}» حذف شد"
+TAG_NOT_FOUND = "این تگ پیدا نشد"
 
 # Manual (button-driven, no LLM) edit menu - opened by the ✏️ button.
 EDIT_MENU_TEXT = "چی رو می‌خوای ویرایش کنی؟"

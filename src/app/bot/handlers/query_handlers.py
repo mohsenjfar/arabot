@@ -41,6 +41,8 @@ from src.services.resource_service import (
     get_tag_title,
     toggle_resource_tag,
     delete_resource,
+    rename_tag,
+    delete_tag,
 )
 from ..shared.commons import (
     create_task_message,
@@ -55,6 +57,9 @@ from ..shared.commons import (
     resource_price_text,
     resource_price_keyboard,
     resource_delete_confirm_keyboard,
+    tags_home_keyboard,
+    tag_edit_keyboard,
+    tag_rename_confirm_keyboard,
 )
 from ..shared.jalali_calendar import calendar_keyboard, shift_month
 from ..shared.constants import *
@@ -216,7 +221,11 @@ async def edit_menu_description_ai_query_handler(update: Update, context: Contex
     context.user_data.pop("edit_field", None)
     insert_message(user.id, 'user', EDIT_DESCRIPTION_AI_PROMPT.format(task))
     insert_message(user.id, 'assistant', EDIT_DESCRIPTION_AI_RESPONSE.format(user.first_name))
-    await query.message.edit_text(EDIT_DESCRIPTION_AI_RESPONSE.format(user.first_name))
+    # cancel: (global fallback, see cancel_query_handler) works from any
+    # state - LLM's own state list has no CallbackQueryHandler at all, so
+    # without this button there was no way out of the AI consult short of /start.
+    cancel_button = InlineKeyboardMarkup([[InlineKeyboardButton('لغو', callback_data=f'cancel:{task_id}')]])
+    await query.message.edit_text(EDIT_DESCRIPTION_AI_RESPONSE.format(user.first_name), reply_markup=cancel_button)
     return LLM
 
 async def _finalize_date_edit(query, context, task_id):
@@ -413,6 +422,57 @@ async def resource_delete_cancel_query_handler(update: Update, context: ContextT
     await _show_resource_details(query, resource)
     return RESOURCE_DETAIL
 
+def _show_tag_edit(tag_id):
+    return TAG_EDIT_TEXT.format(get_tag_title(tag_id)), tag_edit_keyboard()
+
+async def tags_home_add_query_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """➕ on the /tags home menu - prompts for a title, same bare-then-edit
+    pattern as ➕ on /resource."""
+    query = update.callback_query
+    context.user_data.pop("tag_id", None)
+    context.user_data["prompt_message_id"] = query.message.message_id
+    await query.message.edit_text(TAG_ADD_PROMPT)
+    return TAG_EDIT
+
+async def tags_home_cancel_query_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.message.delete()
+    return ACTIVITY
+
+async def tag_edit_back_query_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    context.user_data.pop("tag_id", None)
+    await query.message.edit_text(TAGS_HOME_TEXT, reply_markup=tags_home_keyboard())
+    return TAG_HOME
+
+async def tag_delete_query_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """🗑️ inside /tags edit view - immediate delete, no confirm step
+    (matches the legacy bot's edit_tag_query_callbacks exactly)."""
+    query = update.callback_query
+    tag_id = context.user_data.pop("tag_id", None)
+    title = get_tag_title(tag_id)
+    delete_tag(tag_id)
+    await query.answer(TAG_DELETED.format(title))
+    await query.message.edit_text(TAGS_HOME_TEXT, reply_markup=tags_home_keyboard())
+    return TAG_HOME
+
+async def tag_rename_confirm_query_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    tag_id = context.user_data.get("tag_id")
+    new_title = context.user_data.pop("tag_pending_title", None)
+    rename_tag(tag_id, new_title)
+    text, reply_markup = _show_tag_edit(tag_id)
+    await query.message.edit_text(text, reply_markup=reply_markup)
+    return TAG_EDIT
+
+async def tag_rename_cancel_query_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    tag_id = context.user_data.get("tag_id")
+    context.user_data.pop("tag_pending_title", None)
+    text, reply_markup = _show_tag_edit(tag_id)
+    await query.message.edit_text(text, reply_markup=reply_markup)
+    return TAG_EDIT
+
 async def resource_inline_query_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     inline_query = update.inline_query
     parts = (inline_query.query or "").split(':', 2)
@@ -486,6 +546,22 @@ async def resource_inline_query_handler(update: Update, context: ContextTypes.DE
                 input_message_content=InputTextMessageContent(f"__archive_selected__:{activity['id']}"),
             )
             for activity in activities
+        ]
+        await inline_query.answer(results, cache_time=0)
+        return
+
+    if prefix == "tagmgmt":
+        search_text = parts[1] if len(parts) > 1 else ""
+        tags = search_tags(search_text)
+        results = [
+            InlineQueryResultArticle(
+                id=str(tag["id"]),
+                title=tag["title"],
+                # Posted from /tags' 🔍 picker - TAG_HOME's message handler
+                # intercepts this sentinel (see tag_manage_selected_message_handler).
+                input_message_content=InputTextMessageContent(f"__tag_manage_selected__:{tag['id']}"),
+            )
+            for tag in tags
         ]
         await inline_query.answer(results, cache_time=0)
         return

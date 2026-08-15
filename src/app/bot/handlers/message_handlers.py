@@ -40,6 +40,7 @@ from src.services.resource_service import (
     toggle_resource_tag,
     add_new_resource_tag,
     get_tag_title,
+    create_tag,
 )
 from ..shared.commons import (
     create_task_message,
@@ -51,8 +52,20 @@ from ..shared.commons import (
     resource_tag_keyboard,
     resource_price_text,
     resource_price_keyboard,
+    tags_home_keyboard,
+    tag_edit_keyboard,
+    tag_rename_confirm_keyboard,
 )
 from ..shared.constants import *
+from .command_handlers import (
+    report_command_handler,
+    resource_command_handler,
+    archive_command_handler,
+    tags_command_handler,
+    timer_command_handler,
+    help_command_handler,
+    stop_command_handler,
+)
 
 from src.llm.llm_client import get_response_from_model
 
@@ -583,3 +596,72 @@ async def archive_selected_message_handler(update: Update, context: ContextTypes
     msg = await _get_working_message(update, context)
     await _show_task_result(msg, result)
     return ACTIVITY
+
+
+async def tag_manage_selected_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Catches the sentinel posted when the user picks a tag from /tags' 🔍
+    picker (see resource_inline_query_handler's `tagmgmt:` prefix) - shows
+    its rename/delete view."""
+    user_text = (update.message.text or "").strip()
+    await update.message.delete()
+
+    if not user_text.startswith("__tag_manage_selected__:"):
+        return TAG_HOME
+
+    _, tag_id = user_text.split(':')
+    title = get_tag_title(tag_id)
+    if not title:
+        msg = await _get_working_message(update, context)
+        await msg.edit_text(TAG_NOT_FOUND)
+        return TAG_HOME
+
+    context.user_data["tag_id"] = tag_id
+    msg = await _get_working_message(update, context)
+    await msg.edit_text(TAG_EDIT_TEXT.format(title), reply_markup=tag_edit_keyboard())
+    context.user_data["prompt_message_id"] = msg.message_id
+    return TAG_EDIT
+
+
+async def tag_field_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Text reply in the /tags edit view: no tag_id yet means this is the
+    ➕ step (create), otherwise it's a rename request that needs confirming."""
+    tag_id = context.user_data.get("tag_id")
+    text = (update.message.text or "").strip()
+    await update.message.delete()
+
+    if not tag_id:
+        new_id = create_tag(text)
+        context.user_data["tag_id"] = new_id
+        msg = await _get_working_message(update, context)
+        await msg.edit_text(TAG_EDIT_TEXT.format(get_tag_title(new_id)), reply_markup=tag_edit_keyboard())
+        context.user_data["prompt_message_id"] = msg.message_id
+        return TAG_EDIT
+
+    context.user_data["tag_pending_title"] = text
+    msg = await _get_working_message(update, context)
+    await msg.edit_text(TAG_RENAME_CONFIRM.format(get_tag_title(tag_id), text), reply_markup=tag_rename_confirm_keyboard())
+    context.user_data["prompt_message_id"] = msg.message_id
+    return TAG_CONFIRM
+
+
+_COMMAND_KEYBOARD_DISPATCH = {
+    CMD_LABEL_REPORT: report_command_handler,
+    CMD_LABEL_RESOURCE: resource_command_handler,
+    CMD_LABEL_ARCHIVE: archive_command_handler,
+    CMD_LABEL_TAGS: tags_command_handler,
+    CMD_LABEL_TIMER: timer_command_handler,
+    CMD_LABEL_HELP: help_command_handler,
+    CMD_LABEL_STOP: stop_command_handler,
+}
+
+
+async def command_keyboard_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """The persistent reply-keyboard (see commons.main_reply_keyboard) sends
+    its button label as plain text - recognize known labels and dispatch to
+    the same handler /command would use, falling through to
+    create_activity_message_handler for anything else (typed free text)."""
+    text = (update.message.text or "").strip()
+    handler = _COMMAND_KEYBOARD_DISPATCH.get(text)
+    if handler:
+        return await handler(update, context)
+    return await create_activity_message_handler(update, context)

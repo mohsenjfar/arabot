@@ -18,6 +18,9 @@ from .message_handlers import (
     resource_field_message_handler,
     tag_selected_message_handler,
     archive_selected_message_handler,
+    tag_manage_selected_message_handler,
+    tag_field_message_handler,
+    command_keyboard_message_handler,
 )
 
 from .command_handlers import (
@@ -29,6 +32,7 @@ from .command_handlers import (
     timer_command_handler,
     resource_command_handler,
     archive_command_handler,
+    tags_command_handler,
 )
 
 from .query_handlers import (
@@ -56,6 +60,12 @@ from .query_handlers import (
     resource_price_delete_query_handler,
     resource_delete_confirm_query_handler,
     resource_delete_cancel_query_handler,
+    tags_home_add_query_handler,
+    tags_home_cancel_query_handler,
+    tag_edit_back_query_handler,
+    tag_delete_query_handler,
+    tag_rename_confirm_query_handler,
+    tag_rename_cancel_query_handler,
     cancel_query_handler
 )
 
@@ -75,8 +85,9 @@ main_conversation = ConversationHandler(
             CommandHandler("timer", timer_command_handler),
             CommandHandler("resource", resource_command_handler),
             CommandHandler("archive", archive_command_handler),
+            CommandHandler("tags", tags_command_handler),
             CommandHandler("stop", stop_command_handler),
-            MessageHandler(filters.TEXT & ~filters.COMMAND, create_activity_message_handler),
+            MessageHandler(filters.TEXT & ~filters.COMMAND, command_keyboard_message_handler),
             CallbackQueryHandler(complete_activity_query_handler, pattern="^complete:"),
             CallbackQueryHandler(skip_activity_query_handler, pattern="^skip:"),
             CallbackQueryHandler(delete_activity_query_handler, pattern="^delete:"),
@@ -136,6 +147,20 @@ main_conversation = ConversationHandler(
         ],
         ARCHIVE_BROWSE: [
             MessageHandler(filters.TEXT & ~filters.COMMAND, archive_selected_message_handler),
+        ],
+        TAG_HOME: [
+            CallbackQueryHandler(tags_home_add_query_handler, pattern="^tagnew$"),
+            CallbackQueryHandler(tags_home_cancel_query_handler, pattern="^tagcancel$"),
+            MessageHandler(filters.TEXT & ~filters.COMMAND, tag_manage_selected_message_handler),
+        ],
+        TAG_EDIT: [
+            CallbackQueryHandler(tag_edit_back_query_handler, pattern="^tagback$"),
+            CallbackQueryHandler(tag_delete_query_handler, pattern="^tagdelete$"),
+            MessageHandler(filters.TEXT & ~filters.COMMAND, tag_field_message_handler),
+        ],
+        TAG_CONFIRM: [
+            CallbackQueryHandler(tag_rename_confirm_query_handler, pattern="^tagrenameconfirm$"),
+            CallbackQueryHandler(tag_rename_cancel_query_handler, pattern="^tagrenamecancel$"),
         ],
     },
     fallbacks=[
