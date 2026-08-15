@@ -17,6 +17,7 @@ from .message_handlers import (
     resource_view_selected_message_handler,
     resource_field_message_handler,
     tag_selected_message_handler,
+    archive_selected_message_handler,
 )
 
 from .command_handlers import (
@@ -26,7 +27,8 @@ from .command_handlers import (
     stop_command_handler,
     report_command_handler,
     timer_command_handler,
-    resource_command_handler
+    resource_command_handler,
+    archive_command_handler,
 )
 
 from .query_handlers import (
@@ -36,6 +38,7 @@ from .query_handlers import (
     edit_menu_back_query_handler,
     edit_menu_copy_query_handler,
     edit_menu_delete_query_handler,
+    edit_menu_archive_query_handler,
     edit_menu_description_ai_query_handler,
     calendar_query_handler,
     skip_activity_query_handler,
@@ -46,6 +49,7 @@ from .query_handlers import (
     resource_remove_query_handler,
     resource_back_query_handler,
     resource_home_add_query_handler,
+    resource_home_cancel_query_handler,
     resource_detail_query_handler,
     resource_back_to_detail_query_handler,
     resource_price_add_query_handler,
@@ -70,6 +74,7 @@ main_conversation = ConversationHandler(
             CommandHandler("report", report_command_handler),
             CommandHandler("timer", timer_command_handler),
             CommandHandler("resource", resource_command_handler),
+            CommandHandler("archive", archive_command_handler),
             CommandHandler("stop", stop_command_handler),
             MessageHandler(filters.TEXT & ~filters.COMMAND, create_activity_message_handler),
             CallbackQueryHandler(complete_activity_query_handler, pattern="^complete:"),
@@ -88,6 +93,7 @@ main_conversation = ConversationHandler(
             CallbackQueryHandler(edit_menu_copy_query_handler, pattern="^editcopy$"),
             CallbackQueryHandler(edit_menu_delete_query_handler, pattern="^editdelete$"),
             CallbackQueryHandler(confirm_delete_activity_query_handler, pattern="^confirm_delete:"),
+            CallbackQueryHandler(edit_menu_archive_query_handler, pattern="^editarchive$"),
             CallbackQueryHandler(edit_menu_back_query_handler, pattern="^editback$"),
         ],
         EDIT_FIELD: [
@@ -106,6 +112,7 @@ main_conversation = ConversationHandler(
         ],
         RESOURCE_HOME: [
             CallbackQueryHandler(resource_home_add_query_handler, pattern="^resnew$"),
+            CallbackQueryHandler(resource_home_cancel_query_handler, pattern="^rescancel$"),
             MessageHandler(filters.TEXT & ~filters.COMMAND, resource_view_selected_message_handler),
         ],
         RESOURCE_DETAIL: [
@@ -126,6 +133,9 @@ main_conversation = ConversationHandler(
         RESOURCE_DELETE: [
             CallbackQueryHandler(resource_delete_confirm_query_handler, pattern="^confirm_resdelete$"),
             CallbackQueryHandler(resource_delete_cancel_query_handler, pattern="^cancel_resdelete$"),
+        ],
+        ARCHIVE_BROWSE: [
+            MessageHandler(filters.TEXT & ~filters.COMMAND, archive_selected_message_handler),
         ],
     },
     fallbacks=[

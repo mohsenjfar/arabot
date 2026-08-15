@@ -23,6 +23,9 @@ from src.services.task_service import (
     copy_activity,
     get_activity_datetime,
     update_activity,
+    archive_activity,
+    unarchive_activity,
+    list_archived_activities,
 )
 from src.services.report_service import get_activity_details_by_id
 from src.services.resource_service import (
@@ -124,6 +127,18 @@ async def edit_menu_delete_query_handler(update: Update, context: ContextTypes.D
     text, reply_markup = _delete_confirm_markup(task_id)
     await query.message.edit_text(text=text, reply_markup=reply_markup)
     return EDIT_MENU
+
+async def edit_menu_archive_query_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """🗃️ inside the ✏️ menu - just flips the flag and closes the card, same
+    terminal pattern as complete/skip. Doesn't stop recurrence or touch
+    next_date: it's excluded from the reminder job (get_due_tasks) until
+    restored via /archive."""
+    query = update.callback_query
+    task_id = context.user_data.pop("task_id", None)
+    summary = archive_activity(task_id)
+    await query.answer(ARCHIVE_DONE.format(summary))
+    await query.message.delete()
+    return ACTIVITY
 
 async def edit_menu_back_query_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -306,6 +321,13 @@ async def resource_home_add_query_handler(update: Update, context: ContextTypes.
     await query.message.edit_text(RESOURCE_ADD_PROMPT)
     return RESOURCE_FIELD
 
+async def resource_home_cancel_query_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """🔙 on the /resource home menu - just closes it. Without this there was
+    no way to back out once /resource was opened."""
+    query = update.callback_query
+    await query.message.delete()
+    return ACTIVITY
+
 async def resource_detail_query_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Dispatches the per-resource details/edit menu (🗂️/📏/🔄/🔙/🗑️/🫙/🧾) -
     mirrors the legacy bot's resource_keyboard callbacks."""
@@ -447,6 +469,23 @@ async def resource_inline_query_handler(update: Update, context: ContextTypes.DE
                 input_message_content=InputTextMessageContent(f"__tag_selected__:{tag['id']}:{resource_id}"),
             )
             for tag in tags
+        ]
+        await inline_query.answer(results, cache_time=0)
+        return
+
+    if prefix == "archive":
+        search_text = parts[1] if len(parts) > 1 else ""
+        activities = list_archived_activities(inline_query.from_user.id, search_text)
+        results = [
+            InlineQueryResultArticle(
+                id=str(activity["id"]),
+                title=activity["summary"],
+                description=activity.get("description") or "",
+                # Posted from /archive's 🔍 picker - ARCHIVE_BROWSE's message
+                # handler intercepts this sentinel (see archive_selected_message_handler).
+                input_message_content=InputTextMessageContent(f"__archive_selected__:{activity['id']}"),
+            )
+            for activity in activities
         ]
         await inline_query.answer(results, cache_time=0)
         return

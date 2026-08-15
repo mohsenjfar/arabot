@@ -10,6 +10,7 @@ RESOURCE_FIELD = chr(8)
 RESOURCE_TAG = chr(9)
 RESOURCE_PRICE = chr(10)
 RESOURCE_DELETE = chr(11)
+ARCHIVE_BROWSE = chr(12)
 
 MAX_TELEGRAM_MSG = 3500
 
@@ -42,6 +43,13 @@ RESOURCE_PARITY_INVALID = "یه عدد معتبر بفرست"
 RESOURCE_DELETE_CONFIRM_TEXT = "توجه! این کار منبع و کل سابقه‌ی مصرفش رو کاملا حذف می‌کنه. مطمئنی؟"
 RESOURCE_DELETED = "منبع «{}» حذف شد"
 RESOURCE_NOT_FOUND = "این منبع پیدا نشد"
+
+# /archive - browsing archived activities is inline-query only (see the 🗃️
+# button in the ✏️ menu for archiving one).
+ARCHIVE_PROMPT_TEXT = "برای دیدن فعالیت‌های آرشیو شده 🔍 رو بزن - انتخاب هرکدوم از آرشیو خارجش می‌کنه"
+ARCHIVE_DONE = "«{}» آرشیو شد"
+ARCHIVE_RESTORED = "«{}» از آرشیو خارج شد"
+ARCHIVE_NOT_FOUND = "این فعالیت پیدا نشد"
 
 # Manual (button-driven, no LLM) edit menu - opened by the ✏️ button.
 EDIT_MENU_TEXT = "چی رو می‌خوای ویرایش کنی؟"

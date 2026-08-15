@@ -59,6 +59,7 @@ def edit_menu_keyboard():
             InlineKeyboardButton('🔙', callback_data='editback'),
             InlineKeyboardButton('🗑️', callback_data='editdelete'),
             InlineKeyboardButton('🟠🔵', callback_data='editcopy'),
+            InlineKeyboardButton('🗃️', callback_data='editarchive'),
         ]
     ]
     return InlineKeyboardMarkup(buttons)
@@ -89,11 +90,19 @@ def resource_menu_keyboard(task_id, links):
 def resource_home_keyboard():
     """/resource landing menu - mirrors the legacy bot's resources_keyboard
     (minus the by-tag search, not asked for here): 🔍 browse/search existing
-    resources via inline query, ➕ define a new one."""
+    resources via inline query, ➕ define a new one, 🔙 to back out (without
+    it there was no way to abandon this screen once opened)."""
     buttons = [[
         InlineKeyboardButton('🔍', switch_inline_query_current_chat='resdef:'),
         InlineKeyboardButton('➕', callback_data='resnew'),
+        InlineKeyboardButton('🔙', callback_data='rescancel'),
     ]]
+    return InlineKeyboardMarkup(buttons)
+
+def archive_browse_keyboard():
+    """/archive - browsing is inline-query only, this button opens it
+    pre-filled (see resource_inline_query_handler's `archive:` prefix)."""
+    buttons = [[InlineKeyboardButton('🔍', switch_inline_query_current_chat='archive:')]]
     return InlineKeyboardMarkup(buttons)
 
 def resource_details_text(resource):

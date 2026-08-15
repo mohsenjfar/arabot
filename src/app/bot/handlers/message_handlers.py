@@ -17,7 +17,8 @@ from src.services.task_service import (
     update_activity,
     update_activity_frequency,
     notification,
-    clear_activity
+    clear_activity,
+    unarchive_activity,
 )
 from src.services.report_service import (
     report_activities_by_time,
@@ -565,3 +566,20 @@ async def tag_selected_message_handler(update: Update, context: ContextTypes.DEF
     await msg.edit_text(resource_tag_text(resource), reply_markup=resource_tag_keyboard(resource_id))
     context.user_data["prompt_message_id"] = msg.message_id
     return RESOURCE_TAG
+
+
+async def archive_selected_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Catches the sentinel posted when the user picks an archived activity
+    from /archive's 🔍 picker (see resource_inline_query_handler's `archive:`
+    prefix) - picking it out of the archive restores it, no extra confirm."""
+    user_text = (update.message.text or "").strip()
+    await update.message.delete()
+
+    if not user_text.startswith("__archive_selected__:"):
+        return ARCHIVE_BROWSE
+
+    _, task_id = user_text.split(':')
+    result = unarchive_activity(task_id)
+    msg = await _get_working_message(update, context)
+    await _show_task_result(msg, result)
+    return ACTIVITY

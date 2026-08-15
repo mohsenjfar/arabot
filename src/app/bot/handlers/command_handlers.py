@@ -11,7 +11,7 @@ from src.services.user_service import (
     activate_user
 )
 from src.services.task_service import create_activity
-from ..shared.commons import resource_home_keyboard
+from ..shared.commons import resource_home_keyboard, archive_browse_keyboard
 from ..shared.constants import *
 from src.llm.llm_client import get_help_response_from_model
 
@@ -74,6 +74,14 @@ async def resource_command_handler(update: Update, context: ContextTypes.DEFAULT
     context.user_data["prompt_message_id"] = prompt_msg.message_id
     await update.message.delete()
     return RESOURCE_HOME
+
+async def archive_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Browsing archived activities is inline-query only (see the 🗃️ button
+    in the ✏️ menu for archiving one) - this just opens the picker."""
+    prompt_msg = await update.message.reply_text(ARCHIVE_PROMPT_TEXT, reply_markup=archive_browse_keyboard())
+    context.user_data["prompt_message_id"] = prompt_msg.message_id
+    await update.message.delete()
+    return ARCHIVE_BROWSE
 
 async def timer_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user

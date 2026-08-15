@@ -308,6 +308,54 @@ def skip_future_activities(task_id):
         if session is not None:
             session.close()
 
+def archive_activity(task_id):
+    """🗃️ in the ✏️ edit menu - just sets a flag. Doesn't touch next_date/rrule:
+    the task stays exactly as it was, it's only excluded from the reminder
+    job (see report_service.get_due_tasks) so it stops surfacing as a card
+    until it's restored via /archive."""
+    session = get_session()
+    try:
+        task = session.query(Task).filter_by(id=task_id).one()
+        task.archived = True
+        session.commit()
+        return task.summary
+    except Exception as e:
+        session.rollback()
+        logger.warning(f"archive_activity error: {e}")
+        raise
+    finally:
+        session.close()
+
+def unarchive_activity(task_id):
+    """Picking an archived activity from the /archive inline-query browser
+    restores it - selecting it out of the archive is *the* action, there's
+    no separate confirm step."""
+    session = get_session()
+    try:
+        task = session.query(Task).filter_by(id=task_id).one()
+        task.archived = False
+        session.commit()
+        session.refresh(task)
+        return to_task_response(task).model_dump()
+    except Exception as e:
+        session.rollback()
+        logger.warning(f"unarchive_activity error: {e}")
+        return {"status": "error", "message": "خطا در بازگردانی فعالیت از آرشیو. لطفا دوباره تلاش کن."}
+    finally:
+        session.close()
+
+def list_archived_activities(user_id, search_text=""):
+    """Backs the /archive command's 🔍 inline-query browser."""
+    session = get_session()
+    try:
+        q = session.query(Task).filter(Task.user_id == user_id, Task.archived == True)
+        if search_text:
+            q = q.filter(Task.summary.contains(search_text))
+        tasks = q.order_by(Task.summary).limit(20).all()
+        return [{"id": t.id, "summary": t.summary, "description": t.description} for t in tasks]
+    finally:
+        session.close()
+
 def get_activity_datetime(task_id):
     """Raw (non-humanized) upcoming datetime for a task - seeds the manual
     📆 date-edit calendar picker, which needs an actual datetime object to

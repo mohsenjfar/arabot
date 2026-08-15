@@ -57,6 +57,7 @@ class Task(Base):
     description = Column(Text, nullable=True)
     completed = Column(Boolean, default=False)
     notified = Column(Boolean, default=False)
+    archived = Column(Boolean, nullable=False, default=False)
 
     user = relationship('User', backref='tasks')
 

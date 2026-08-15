@@ -32,6 +32,7 @@ def get_due_tasks():
             .filter(Task.next_date <= timezone.now().replace(tzinfo=None, microsecond=0))
             .filter(Task.completed == False)
             .filter(Task.notified == False)
+            .filter(Task.archived == False)
             .filter(User.is_active == True)
             .order_by(Task.next_date)
             .all()
