@@ -1,7 +1,7 @@
 services:
 
   arabot-mig:
-    image: arabot:${IMAGE_TAG}
+    image: arabot:latest
     working_dir: /ara/src/persistence
     command: ["alembic", "-c", "alembic.ini", "upgrade", "head"]
     environment:
@@ -11,7 +11,7 @@ services:
 
 
   arabot-dev:
-    image: arabot:${IMAGE_TAG}
+    image: arabot:latest
     restart: unless-stopped
     container_name: arabot-dev
     volumes:
@@ -33,7 +33,7 @@ services:
 
 
   arabot-prod:
-    image: arabot:${IMAGE_TAG}
+    image: arabot:latest
     restart: unless-stopped
     container_name: arabot-prod
     volumes:
