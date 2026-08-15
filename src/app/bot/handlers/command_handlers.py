@@ -1,5 +1,5 @@
 import logging
-from telegram import Update
+from telegram import Update, ReplyKeyboardRemove
 from telegram.ext import (
     ContextTypes,
     ConversationHandler
@@ -18,12 +18,39 @@ from src.llm.llm_client import get_help_response_from_model
 logger = logging.getLogger(__name__)
 
 
+async def _show_menu(update: Update, context: ContextTypes.DEFAULT_TYPE, greeting: str):
+    """Shows the command keyboard alongside a "pick from the menu" prompt -
+    tracked so _clear_menu can collapse both once an option is picked."""
+    text = f"{greeting}\n\n{MENU_SELECT_PROMPT}"
+    msg = await update.message.reply_text(text, reply_markup=main_reply_keyboard())
+    context.user_data["menu_prompt_id"] = msg.message_id
+
+
+async def _clear_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Called at the top of every command handler reachable from the /start
+    menu: deletes the tracked "pick from the menu" prompt, and collapses the
+    ReplyKeyboardMarkup itself. Telegram only lets a keyboard be attached or
+    removed via a genuine sendMessage (never editMessageText), and there's no
+    way to remove one without sending *something* - so this sends a
+    throwaway message with ReplyKeyboardRemove and immediately deletes it."""
+    menu_prompt_id = context.user_data.pop("menu_prompt_id", None)
+    if not menu_prompt_id:
+        return
+    chat_id = update.effective_chat.id
+    try:
+        await context.bot.delete_message(chat_id, menu_prompt_id)
+    except Exception as e:
+        logger.info(f"Could not delete menu prompt: {e}")
+    blip = await context.bot.send_message(chat_id, "🔽", reply_markup=ReplyKeyboardRemove())
+    await blip.delete()
+
+
 async def start_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
 
     if not user_exists(user.id):
         insert_user(user.id, user.first_name)
-        await update.message.reply_text(USER_INITIAL_GREETING.format(user.first_name), reply_markup=main_reply_keyboard())
+        await _show_menu(update, context, USER_INITIAL_GREETING.format(user.first_name))
         await update.message.delete()
         return ACTIVITY
 
@@ -33,23 +60,20 @@ async def start_command_handler(update: Update, context: ContextTypes.DEFAULT_TY
         return ConversationHandler.END
 
     activate_user(user.id)
-    await update.message.reply_text(USER_COMEBACK_GREETING.format(user.first_name), reply_markup=main_reply_keyboard())
+    await _show_menu(update, context, USER_COMEBACK_GREETING.format(user.first_name))
     await update.message.delete()
     return ACTIVITY
 
 async def restart_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
-    await update.message.reply_text(RESTART_MESSAGE.format(user.first_name), reply_markup=main_reply_keyboard())
+    await _show_menu(update, context, RESTART_MESSAGE.format(user.first_name))
     await update.message.delete()
     return ACTIVITY
 
 async def help_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
-    # Telegram only lets a ReplyKeyboardMarkup be set on a genuinely new
-    # sendMessage, never via editMessageText - attach it here on the initial
-    # send, since the later edit_text below can't touch it anyway (it's
-    # already persisted client-side by then).
-    msg = await update.message.reply_text(PROCESSING, reply_markup=main_reply_keyboard())
+    await _clear_menu(update, context)
+    msg = await update.message.reply_text(PROCESSING)
     await update.message.delete()
     try:
         await msg.edit_text(get_help_response_from_model(user))
@@ -60,13 +84,15 @@ async def help_command_handler(update: Update, context: ContextTypes.DEFAULT_TYP
 
 async def stop_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
-    await update.message.reply_text(STOP_BOT.format(user.first_name), reply_markup=main_reply_keyboard())
+    await _clear_menu(update, context)
+    await update.message.reply_text(STOP_BOT.format(user.first_name))
     await update.message.delete()
     return ConversationHandler.END
 
 async def report_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
-    prompt_msg = await update.message.reply_text(REPORT_PROMPT.format(user.first_name), reply_markup=main_reply_keyboard())
+    await _clear_menu(update, context)
+    prompt_msg = await update.message.reply_text(REPORT_PROMPT.format(user.first_name))
     context.user_data["prompt_message_id"] = prompt_msg.message_id
     await update.message.delete()
     return LLM
@@ -74,6 +100,7 @@ async def report_command_handler(update: Update, context: ContextTypes.DEFAULT_T
 async def resource_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Manual (button-driven, no LLM) resource management - see resource_service.py
     and the RESOURCE_* states in conversation_handlers.py."""
+    await _clear_menu(update, context)
     prompt_msg = await update.message.reply_text(RESOURCE_HOME_TEXT, reply_markup=resource_home_keyboard())
     context.user_data["prompt_message_id"] = prompt_msg.message_id
     await update.message.delete()
@@ -82,6 +109,7 @@ async def resource_command_handler(update: Update, context: ContextTypes.DEFAULT
 async def archive_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Browsing archived activities is inline-query only (see the 🗃️ button
     in the ✏️ menu for archiving one) - this just opens the picker."""
+    await _clear_menu(update, context)
     prompt_msg = await update.message.reply_text(ARCHIVE_PROMPT_TEXT, reply_markup=archive_browse_keyboard())
     context.user_data["prompt_message_id"] = prompt_msg.message_id
     await update.message.delete()
@@ -90,6 +118,7 @@ async def archive_command_handler(update: Update, context: ContextTypes.DEFAULT_
 async def tags_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Manual (button-driven, no LLM) tag management - mirrors legacy-bot-version's
     tag_conversation.py."""
+    await _clear_menu(update, context)
     prompt_msg = await update.message.reply_text(TAGS_HOME_TEXT, reply_markup=tags_home_keyboard())
     context.user_data["prompt_message_id"] = prompt_msg.message_id
     await update.message.delete()
@@ -97,6 +126,7 @@ async def tags_command_handler(update: Update, context: ContextTypes.DEFAULT_TYP
 
 async def timer_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
+    await _clear_menu(update, context)
 
     # create_activity seeds the row with the *next* block (work vs break)
     # from the wall-clock grid, not the block in progress right now - same

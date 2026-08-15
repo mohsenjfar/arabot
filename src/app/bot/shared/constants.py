@@ -33,6 +33,11 @@ USER_COMEBACK_GREETING = 'سلام {} عزیز خوشحالم که دوباره 
 RESTART_MESSAGE = "در خدمتم {} عزیز"
 STOP_BOT = "بسیار خوب {} عزیز، هر زمان که به من نیاز داشتی من اینجام، به امید دیدار"
 
+# The command keyboard is shown only right after /start or /restart, not
+# persistently - it (and this prompt) collapse the moment any option is
+# picked. See command_handlers._clear_menu.
+MENU_SELECT_PROMPT = "از منوی زیر گزینه مورد نظرت رو انتخاب کن 👇"
+
 USER_NOT_ALLOWED = 'Access is restricted, please contact @mohsenjfar'
 
 AI_SERVER_ERROR = "متاسفانه در ارتباط با سرور هوش مصنوعی مشکلی پیش آمد. لطفا دوباره تلاش کنید."
