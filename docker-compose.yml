@@ -1,9 +1,9 @@
 services:
 
-  arabot-dev:
+  arabot:
     image: arabot:latest
     restart: unless-stopped
-    container_name: arabot-dev
+    container_name: arabot
     volumes:
       - ara_data_dev:/ara/src/persistence/states
     env_file:
