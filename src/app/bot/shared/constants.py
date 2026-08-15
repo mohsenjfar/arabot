@@ -20,13 +20,13 @@ MAX_TELEGRAM_MSG = 3500
 # Persistent reply-keyboard button labels (see commons.main_reply_keyboard) -
 # a tap sends this exact text as a plain message, recognized and dispatched
 # to the matching /command handler by message_handlers.command_keyboard_message_handler.
-CMD_LABEL_REPORT = "📊 گزارش"
-CMD_LABEL_RESOURCE = "🧺 منابع"
-CMD_LABEL_ARCHIVE = "🗃️ آرشیو"
-CMD_LABEL_TAGS = "🏷️ تگ‌ها"
-CMD_LABEL_TIMER = "⏲ تایمر"
-CMD_LABEL_HELP = "❓ راهنما"
-CMD_LABEL_STOP = "🛑 توقف"
+CMD_LABEL_REPORT = "/report"
+CMD_LABEL_RESOURCE = "/resources"
+CMD_LABEL_ARCHIVE = "/archive"
+CMD_LABEL_TAGS = "/tags"
+CMD_LABEL_TIMER = "/timer"
+CMD_LABEL_HELP = "/help"
+CMD_LABEL_STOP = "/stop"
 
 USER_INITIAL_GREETING = "سلام {} عزیز به بازوی آرا خوش جهت مشاهده راهنمای استفاده از بازو /help رو لمس کن"
 USER_COMEBACK_GREETING = 'سلام {} عزیز خوشحالم که دوباره می بینمت'
