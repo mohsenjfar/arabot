@@ -330,13 +330,13 @@ def unarchive_activity(task_id):
     """Picking an item from the /archive inline-query browser - if it's
     actually archived, restores it (selecting it out of the archive is *the*
     action, no separate confirm step). If it's only there because it's
-    completed (not archived), there's no "next_date" to restore it into, so
-    this just returns its info instead of mutating anything."""
+    completed (not archived), archived is already False so this is a no-op
+    on that flag - the returned response's `completed` field is what the
+    caller uses to decide whether to render the normal card or the
+    single-✅-button one (see reactivate_activity)."""
     session = get_session()
     try:
         task = session.query(Task).filter_by(id=task_id).one()
-        if not task.archived:
-            return {"status": "completed_info", "summary": task.summary, "description": task.description}
         task.archived = False
         session.commit()
         session.refresh(task)
@@ -345,6 +345,35 @@ def unarchive_activity(task_id):
         session.rollback()
         logger.warning(f"unarchive_activity error: {e}")
         return {"status": "error", "message": "خطا در بازگردانی فعالیت از آرشیو. لطفا دوباره تلاش کن."}
+    finally:
+        session.close()
+
+def reactivate_activity(task_id):
+    """✅ button on a completed (not archived) activity's card, shown when
+    it's picked from /archive - un-completes it. Recurring: recompute
+    next_date from the rrule same as any confirm; if the rule is fully
+    exhausted that can't produce a future date, so fall back to dtstart, same
+    as disabling recurrence already does (see update_activity_frequency).
+    Non-recurring: same dtstart fallback, since there's no rrule to
+    recompute from."""
+    session = get_session()
+    try:
+        task = session.query(Task).filter_by(id=task_id).one()
+        task.completed = False
+        if task.rrule:
+            next_date, is_recurrent = calculate_next_date(task.dtstart, task.rrule, task.exdate, task.rxdate)
+            task.is_recurrent = is_recurrent
+            task.next_date = next_date or task.dtstart
+        else:
+            task.next_date = task.dtstart
+        task.notified = False
+        session.commit()
+        session.refresh(task)
+        return to_task_response(task).model_dump()
+    except Exception as e:
+        session.rollback()
+        logger.warning(f"reactivate_activity error: {e}")
+        return {"status": "error", "message": "خطا در بازگردانی فعالیت. لطفا دوباره تلاش کن."}
     finally:
         session.close()
 

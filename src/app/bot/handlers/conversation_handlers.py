@@ -37,6 +37,7 @@ from .command_handlers import (
 
 from .query_handlers import (
     complete_activity_query_handler,
+    reactivate_activity_query_handler,
     edit_activity_query_handler,
     edit_menu_field_query_handler,
     edit_menu_back_query_handler,
@@ -90,6 +91,7 @@ main_conversation = ConversationHandler(
             MessageHandler(filters.TEXT & ~filters.COMMAND, command_keyboard_message_handler),
             CallbackQueryHandler(complete_activity_query_handler, pattern="^complete:"),
             CallbackQueryHandler(skip_activity_query_handler, pattern="^skip:"),
+            CallbackQueryHandler(reactivate_activity_query_handler, pattern="^reactivate:"),
             CallbackQueryHandler(delete_activity_query_handler, pattern="^delete:"),
             CallbackQueryHandler(confirm_delete_activity_query_handler, pattern="^confirm_delete:"),
             CallbackQueryHandler(edit_activity_query_handler, pattern="^edit:"),

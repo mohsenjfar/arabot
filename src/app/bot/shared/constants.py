@@ -63,12 +63,12 @@ RESOURCE_NOT_FOUND = "این منبع پیدا نشد"
 # /archive - browsing archived + completed activities is inline-query only
 # (see the 🗃️ button in the ✏️ menu for archiving one). Completed ones are
 # marked with a ✅ prefix on their inline-result title; picking an archived
-# one restores it, picking a completed one just shows info (nothing to
-# restore it into - see unarchive_activity).
+# one restores it to a normal card, picking a completed one shows it as a
+# card too but with just a single ✅ button to un-complete it (see
+# completed_task_message/reactivate_activity_query_handler).
 ARCHIVE_PROMPT_TEXT = "برای دیدن فعالیت‌های آرشیو شده و تکمیل‌شده 🔍 رو بزن - انتخاب یه فعالیت آرشیو شده اون رو از آرشیو خارج می‌کنه"
 ARCHIVE_DONE = "«{}» آرشیو شد"
 ARCHIVE_RESTORED = "«{}» از آرشیو خارج شد"
-ARCHIVE_COMPLETED_INFO = "✅ «{}» قبلا تکمیل شده"
 ARCHIVE_NOT_FOUND = "این فعالیت پیدا نشد"
 
 # /tags - manual tag management, mirrors legacy-bot-version's tag_conversation.

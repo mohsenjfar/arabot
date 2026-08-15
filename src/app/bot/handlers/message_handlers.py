@@ -45,6 +45,7 @@ from src.services.resource_service import (
 )
 from ..shared.commons import (
     create_task_message,
+    completed_task_message,
     resource_menu_keyboard,
     format_resource_links_text,
     resource_details_text,
@@ -583,9 +584,12 @@ async def tag_selected_message_handler(update: Update, context: ContextTypes.DEF
 
 
 async def archive_selected_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Catches the sentinel posted when the user picks an archived activity
-    from /archive's 🔍 picker (see resource_inline_query_handler's `archive:`
-    prefix) - picking it out of the archive restores it, no extra confirm."""
+    """Catches the sentinel posted when the user picks an item from /archive's
+    🔍 picker (see resource_inline_query_handler's `archive:` prefix) - if it
+    was archived, picking it out restores it (normal card, normal buttons).
+    If it's only there because it's completed, it comes back as a card too,
+    but with just the single ✅ (un-complete) button - see completed_task_message
+    and reactivate_activity_query_handler."""
     user_text = (update.message.text or "").strip()
     await update.message.delete()
 
@@ -596,11 +600,13 @@ async def archive_selected_message_handler(update: Update, context: ContextTypes
     result = unarchive_activity(task_id)
     msg = await _get_working_message(update, context)
 
-    if isinstance(result, dict) and result.get("status") == "completed_info":
-        text = ARCHIVE_COMPLETED_INFO.format(result["summary"])
-        if result.get("description"):
-            text += f"\n\n{result['description']}"
-        await msg.edit_text(text)
+    if isinstance(result, dict) and result.get("status") == "error":
+        await _show_task_result(msg, result)
+        return ACTIVITY
+
+    if result.get("completed"):
+        text, reply_markup = completed_task_message(result)
+        await msg.edit_text(text=text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
         return ACTIVITY
 
     await _show_task_result(msg, result)

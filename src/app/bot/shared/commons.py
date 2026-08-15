@@ -52,6 +52,23 @@ def create_task_message(task_details):
         buttons[0].insert(1, InlineKeyboardButton('✖️',callback_data=f'skip:{task_id}'),)
     return '\n'.join(lines), InlineKeyboardMarkup(buttons)
 
+def completed_task_message(task_details):
+    """Same card layout as create_task_message, for a completed (not
+    archived) activity picked from /archive's 🔍 - no next_date to show, and
+    the usual button row is replaced with a single ✅ that un-completes it
+    (see reactivate_activity_query_handler)."""
+    summary = task_details.get('summary')
+    description = task_details.get('description')
+    rrule_human = task_details.get('rrule_human')
+    lines = (
+        f"🔖 <b>{escape(summary)}</b>",
+        f"\n📝 <code>{escape(description)}</code>" if description else "",
+        f"🔄 {escape(rrule_human)}" if rrule_human else ""
+    )
+    task_id = task_details.get('id')
+    buttons = [[InlineKeyboardButton('✅', callback_data=f'reactivate:{task_id}')]]
+    return '\n'.join(lines), InlineKeyboardMarkup(buttons)
+
 def edit_menu_keyboard():
     """Manual (button-driven, no LLM) edit menu opened by ✏️ - mirrors the
     legacy Django bot's task_edit_keyboard. task_id itself isn't embedded in

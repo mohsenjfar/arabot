@@ -25,6 +25,7 @@ from src.services.task_service import (
     update_activity,
     archive_activity,
     unarchive_activity,
+    reactivate_activity,
     list_archived_activities,
 )
 from src.services.report_service import get_activity_details_by_id
@@ -46,6 +47,7 @@ from src.services.resource_service import (
 )
 from ..shared.commons import (
     create_task_message,
+    completed_task_message,
     edit_menu_keyboard,
     resource_menu_keyboard,
     format_resource_links_text,
@@ -79,6 +81,18 @@ async def skip_activity_query_handler(update: Update, context: ContextTypes.DEFA
     result = skip_activity(task_id)
     await query.answer(result)
     await query.message.delete()
+
+async def reactivate_activity_query_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """✅ on a completed activity's card (see completed_task_message) -
+    un-completes it and swaps the card over to the normal button row."""
+    query = update.callback_query
+    task_id = query.data.split(':')[1]
+    result = reactivate_activity(task_id)
+    if isinstance(result, dict) and result.get("status") == "error":
+        await query.answer(result.get("message"), show_alert=True)
+        return
+    text, reply_markup = create_task_message(result)
+    await query.message.edit_text(text=text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
 
 def _delete_confirm_markup(task_id):
     text = "آیا از حذف این فعالیت اطمینان داری؟"
