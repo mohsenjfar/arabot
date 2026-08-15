@@ -21,8 +21,7 @@ logger = logging.getLogger(__name__)
 async def _show_menu(update: Update, context: ContextTypes.DEFAULT_TYPE, greeting: str):
     """Shows the command keyboard alongside a "pick from the menu" prompt -
     tracked so _clear_menu can collapse both once an option is picked."""
-    text = f"{greeting}\n\n{MENU_SELECT_PROMPT}"
-    msg = await update.message.reply_text(text, reply_markup=main_reply_keyboard())
+    msg = await update.message.reply_text(MENU_SELECT_PROMPT, reply_markup=main_reply_keyboard())
     context.user_data["menu_prompt_id"] = msg.message_id
 
 
@@ -50,7 +49,7 @@ async def start_command_handler(update: Update, context: ContextTypes.DEFAULT_TY
 
     if not user_exists(user.id):
         insert_user(user.id, user.first_name)
-        await _show_menu(update, context, USER_INITIAL_GREETING.format(user.first_name))
+        await _show_menu(update, context)
         await update.message.delete()
         return ACTIVITY
 
@@ -60,13 +59,13 @@ async def start_command_handler(update: Update, context: ContextTypes.DEFAULT_TY
         return ConversationHandler.END
 
     activate_user(user.id)
-    await _show_menu(update, context, USER_COMEBACK_GREETING.format(user.first_name))
+    await _show_menu(update, context)
     await update.message.delete()
     return ACTIVITY
 
 async def restart_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
-    await _show_menu(update, context, RESTART_MESSAGE.format(user.first_name))
+    await _show_menu(update, context)
     await update.message.delete()
     return ACTIVITY
 

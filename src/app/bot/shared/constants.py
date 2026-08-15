@@ -28,10 +28,7 @@ CMD_LABEL_TIMER = "/timer"
 CMD_LABEL_HELP = "/help"
 CMD_LABEL_STOP = "/stop"
 
-USER_INITIAL_GREETING = "سلام {} عزیز به بازوی آرا خوش جهت مشاهده راهنمای استفاده از بازو /help رو لمس کن"
-USER_COMEBACK_GREETING = 'سلام {} عزیز خوشحالم که دوباره می بینمت'
-RESTART_MESSAGE = "در خدمتم {} عزیز"
-STOP_BOT = "بسیار خوب {} عزیز، هر زمان که به من نیاز داشتی من اینجام، به امید دیدار"
+STOP_BOT = "بات با موفقیت متوقف شد جهت شروع مجدد /start را لمس کنید"
 
 # The command keyboard is shown only right after /start or /restart, not
 # persistently - it (and this prompt) collapse the moment any option is
