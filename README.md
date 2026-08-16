@@ -1,151 +1,45 @@
-# آرا (Arabot)
+# Ara (arabot) — AI-Assisted Task & Resource Manager for Telegram
 
-ربات تلگرامی مدیریت فعالیت (Task/Activity) به زبان فارسی. کاربر با نوشتن یک پیام ساده یک «فعالیت» ثبت می‌کند، و ربات بر اساس تاریخ/تکرار آن، یادآوری می‌فرستد. مدل زبانی فقط برای چند کار مشخص وارد عمل می‌شود: ویرایش فعالیت، گزارش‌گیری زمانی/موضوعی، و تعریف/مدیریت منابع؛ ثبت اولیه‌ی فعالیت هیچ وابستگی به LLM ندارد.
+*[نسخه فارسی / Persian version](README-fa.md)*
 
-## پشته‌ی فنی
+A Telegram bot that lets users manage recurring tasks and household/business resources entirely through natural conversation — in Persian, on the Jalali calendar.
 
-- **python-telegram-bot** (`ConversationHandler` + `JobQueue`) برای مدیریت مکالمه و جاب‌های زمان‌بندی‌شده
-- **SQLAlchemy** روی **Supabase Postgres**، با **Alembic** برای مدیریت تغییرات اسکیما (`src/persistence/migrations`). چون `target_metadata` در `env.py` تنظیم نشده، `alembic revision --autogenerate` تغییرات مدل را خودکار تشخیص نمی‌دهد و هر migration باید دستی نوشته شود. migrationها دستی و مستقیم روی Supabase اجرا می‌شوند (`alembic -c src/persistence/alembic.ini upgrade head` با `DATABASE_URL` واقعی)، پیش از پوش کردن کد و ری‌استارت کانتینر - هیچ سرویس یا پایپ‌لاین جداگانه‌ای این کار را خودکار انجام نمی‌دهد.
-- مدل زبانی از طریق **NVIDIA NIM** (سازگار با OpenAI SDK)، فقط برای مسیرهای مشخص (ویرایش/گزارش/منابع)
-- تقویم و نمایش تاریخ بر اساس **جلالی**، ذخیره‌سازی داخلی به‌صورت UTC ساده (naive)
+## The problem
 
-## مدل داده
+Most task-reminder bots are either rigid form-fillers (pick a date, pick a repeat rule from a menu) or a thin wrapper that sends every message straight to an LLM, which is slow, expensive, and unpredictable for something as simple as "remind me to water the plants every 3 days."
 
-جدول‌های اصلی در `src/persistence/models.py`:
+## The solution
 
-- **`User`**: `id` همان آیدی عددی کاربر تلگرام است؛ `is_active`, `is_allowed`, `instructions` (متنی که به‌صورت خام به پرامپت سیستمی مدل اضافه می‌شود).
-- **`Message`**: تاریخچه‌ی مکالمه‌ی کاربر↔مدل (نقش `user`/`assistant`)، برای ساخت context مکالمات LLM. این جدول ربطی به فعالیت‌ها ندارد و فقط برای حافظه‌ی کوتاه‌مدت گفتگو با مدل استفاده می‌شود.
-- **`Task`** («فعالیت»): واحد اصلی کل بات. فیلدهای کلیدی:
-  - `summary`, `description`, `dtstart`, `dtend`
-  - `is_recurrent`, `rrule` (فرمت iCal RRULE)، `rrule_human` (توضیح فارسی‌خوان تکرار)
-  - `next_date`: زمان بعدیِ سررسید؛ منبع اصلی تشخیص «الان باید یادآوری بفرستم یا نه»
-  - `exdate`/`rxdate`: لیست تاریخ‌های استثناشده/اضافه‌شده در محاسبه‌ی تکرار (برای پیاده‌سازی «رد کردن» یک نوبت)
-  - `completed`, `notified`
-- **`Resource`**: یک قلم انبار/پس‌انداز (عنوان، واحد، حداقل موجودی)، با `tags` (چندبه‌چند با `Tag`)، `prices` (تاریخچه‌ی قیمت در `ResourcePrice`) و `parity` اختیاری (`ResourceParity`: ضریب تبدیل + واحد مصرف دوم، وقتی واحد ذخیره با واحد مصرف فرق دارد).
-- **`TaskResource`**: الگوی اتصال یک فعالیت به یک منبع — «هر بار این فعالیت تایید بشه، مقدار X از منبع Y اضافه/کم بشه». یک ردیف تاریخچه نیست؛ فقط تنظیم است.
-- **`ResourceLog`**: ردیف واقعیِ تاریخچه‌ی مصرف/تولید — دقیقاً همان لحظه‌ای که یک فعالیت با ✔️ تایید می‌شود، به تاریخ همان نوبت (occurrence) ساخته می‌شود (نگاه کن به «منابع و ردیابی مصرف»).
+Ara splits the work by what actually needs a language model and what doesn't:
 
-## ماشین‌حالت مکالمه
+- **Creating a task is instant and free of any LLM call** — the user just types the task, e.g. "دکتر فردا ساعت ۵"، and it's parsed and scheduled immediately.
+- **The LLM only takes over for a handful of well-defined jobs** — editing a task, running a natural-language report ("what do I have this week?"), or defining/attaching a resource — and it's restricted to **six explicit tools**, so it can't take an arbitrary destructive action on the user's data.
+- **Resource tracking is layered on top of tasks**: a recurring task like "cook rice" can be linked to a pantry item ("rice"), and every time the task is confirmed done, a timestamped consumption record is created automatically — giving the user a real history of usage, not just a checklist.
 
-`src/app/bot/handlers/conversation_handlers.py` یک `ConversationHandler` با دو state تعریف می‌کند:
+## Key features
 
-- **`ACTIVITY`** (حالت پیش‌فرض): هر پیام متنی مستقیماً یک فعالیت جدید می‌سازد (بدون مدل زبانی). دستورها و دکمه‌های اینلاین هم همین‌جا مدیریت می‌شوند.
-- **`LLM`**: فقط وقتی وارد می‌شود که کاربر روی ✏️ (ویرایش) یا 🧺 (منابع فعالیت) بزند، یا `/report`/`/resource` را بفرستد. در این حالت پیام بعدیِ کاربر به مدل زبانی می‌رسد.
+- Natural-language task creation with Jalali (Persian) calendar support, no LLM in the hot path
+- Recurring tasks via iCal `RRULE`, with skip/complete handling per occurrence
+- LLM-powered editing & reporting through 6 explicit, auditable tools — never raw model output shown to the user
+- Resource & inventory tracking: link a task to a pantry/stock item and get automatic, dated consumption logs
+- Built-in Pomodoro timer (`/timer`) reusing the same task/notification engine — no separate code path
+- Background reminder loop with idempotent notification state (never double-sends)
 
-## دستورها
+## Tech stack
 
-| دستور | کار |
-|---|---|
-| `/start` | ثبت‌نام کاربر جدید یا فعال‌سازی مجدد کاربر قبلی؛ ورود به state `ACTIVITY` |
-| `/help` | راهنمای استفاده، تولیدشده توسط مدل زبانی بر اساس `instructions.md` |
-| `/report` | ورود به state `LLM` برای گزارش‌گیری زبان‌طبیعی (مثلاً «کارهای امروز») |
-| `/timer` | شروع تایمر پومودورو (جزئیات پایین‌تر) |
-| `/resource` | ورود به state `LLM` برای تعریف یک منبع جدید (`create_resource`) |
-| `/stop` | پایان مکالمه (`ConversationHandler.END`) |
-| هر متن دیگر در `ACTIVITY` (fallback) | `/start` دوباره را به‌عنوان ری‌استارت می‌پذیرد |
+- **Python**, `python-telegram-bot` (`ConversationHandler` + `JobQueue`)
+- **PostgreSQL (Supabase)** via SQLAlchemy + Alembic migrations
+- **LLM tool-calling** via an OpenAI-compatible endpoint (NVIDIA NIM), restricted to a fixed `tools.json` function set
+- **Docker** for deployment
 
-## ایجاد فعالیت
+## Architecture highlights
 
-`create_activity_message_handler` در `message_handlers.py`: هر پیام متنی ساده (خارج از حالت LLM) مستقیماً به `create_activity({"user_id":..., "summary": متن})` تبدیل می‌شود؛ بدون فراخوانی مدل زبانی. کارت فعالیت بلافاصله نمایش داده می‌شود و پیام اصلی کاربر حذف می‌شود (طبق قاعده‌ی «فقط فعالیت‌ها باید در صفحه بمانند»، نه چت خام).
+- A two-state conversation machine (`ACTIVITY` / `LLM`): plain messages never reach the model; only explicit user actions (✏️ edit, 🧺 resources, `/report`) route into the LLM state.
+- Every write the model can make requires a confirmation step defined in the system prompt — the model must show a preview and get `user_confirmed: true` before calling a mutating tool.
+- Deleting a task with resource history doesn't hard-delete it (that would orphan the consumption log); it gets soft-closed instead so the historical `ResourceLog` stays intact.
 
-## کارت فعالیت و دکمه‌های اینلاین
+Full implementation details (data model, conversation state machine, background job design, known limitations) are documented in the [Persian README](README-fa.md).
 
-هر فعالیت به‌صورت یک کارت با دکمه‌های زیر نمایش داده می‌شود (`create_task_message` در `shared/commons.py`):
+## Status
 
-- **✔️ تایید/انجام‌شد** → `complete_activity`: اگر فعالیت تکرارشونده باشد نوبت بعدی محاسبه و زمان‌بندی می‌شود؛ در غیر این صورت `completed=True`.
-- **🗑️ حذف** → یک مرحله‌ی تأیید (بله/منصرف شدم) می‌آید، سپس حذف کامل از دیتابیس.
-- **✏️ ویرایش** → وارد state `LLM` می‌شود؛ کاربر به زبان طبیعی می‌گوید چی عوض شود، مدل تابع `edit_activity` را صدا می‌زند.
-- **🧹 پاک‌کردن** → فقط `notified` را `False` می‌کند (برای زمانی که می‌خواهی همان یادآوری دوباره قابل ارسال باشد، بدون تغییر زمان‌بندی).
-- **✖️ رد کردن نوبت** (فقط اگر `is_recurrent=True` باشد) → `skip_activity`: نوبت جاری را به `exdate` اضافه می‌کند و نوبت بعدی را دوباره محاسبه می‌کند؛ خودِ تکرار ادامه پیدا می‌کند.
-- **🧺 منابع فعالیت** → وارد state `LLM` می‌شود؛ مدل وضعیت فعلیِ منابع مرتبط با این فعالیت را گزارش می‌دهد و می‌پرسد چیزی برای اضافه/کم‌کردن هست یا نه؛ در صورت تایید، `manage_task_resource` صدا زده می‌شود (نگاه کن به «منابع و ردیابی مصرف»).
-
-قاعده‌ی کلی: هر فعالیت — تکرارشونده یا نه — همیشه ✔️/🗑️/🧺 دارد؛ ✖️ فقط برای تکرارشونده‌ها اضافه می‌شود. این قاعده برای همه‌ی فعالیت‌ها یکسان است، از جمله فعالیت‌های `/timer`، چون هیچ کد اختصاصی جدا برای رندر آن‌ها وجود ندارد.
-
-## مکانیزم تکرار
-
-`calculate_next_date` در `task_service.py` با `dateutil.rrule` کار می‌کند:
-
-1. از روی `rrule` + `dtstart` یک `rruleset` می‌سازد.
-2. تاریخ‌های `exdate` را حذف و `rxdate` را اضافه می‌کند.
-3. نزدیک‌ترین نوبت **بعد از لحظه‌ی حال** را برمی‌گرداند (`rs.after(now)`).
-4. اگر نوبتی نماند، فعالیت `completed=True` می‌شود و از چرخه خارج می‌شود.
-
-نکته‌ی مهم: پیشروی به نوبت بعدی همیشه **دستی** است — فقط با زدن ✔️ یا ✖️ اتفاق می‌افتد؛ تا وقتی کاربر تأیید/رد نکند، `next_date` عوض نمی‌شود. این قاعده برای `/timer` هم صادق است؛ تفاوتش فقط این است که پیش از محاسبه‌ی نوبت بعدی، خودِ `rrule` و `summary` بازنویسی می‌شوند (بخش «`/timer`» را ببین).
-
-## جاب پس‌زمینه‌ی یادآوری
-
-در `main.py`، یک `JobQueue` هر ۶۰ ثانیه (`check_and_send_tasks` در `shared/commons.py`) اجرا می‌شود:
-
-1. `get_due_tasks()`: فعالیت‌هایی که `next_date <= اکنون`، `completed=False`، `notified=False`، و کاربرشان `is_active=True` است.
-2. برای هر کدام کارت فعالیت ارسال می‌شود.
-3. سپس فقط `notification()` صدا زده می‌شود (`notified=True`)، و تا تأیید/رد دستی کاربر (✔️/✖️) دوباره سررسید نمی‌شود.
-
-## مدل زبانی — کجا و چرا استفاده می‌شود
-
-مدل زبانی **فقط** در state `LLM` وارد عمل می‌شود (ورودی از طریق ✏️، 🧺، `/report` یا `/resource`)، و **فقط** شش تابع در اختیارش است (`src/llm/tools.json`):
-
-| تابع | کاربرد | نیاز به تایید |
-|---|---|---|
-| `edit_activity` | ویرایش عنوان/تاریخ/توضیح/تکرار یک فعالیت مشخص | بله |
-| `create_resource` | تعریف یک منبع جدید | بله |
-| `manage_task_resource` | اتصال/ویرایش/حذف پیوند یک منبع به یک فعالیت | بله |
-| `report_activities_by_time` | گزارش زمانی: امروز، فردا، این هفته (تا آخر وقت جمعه) | خیر (فقط خواندنی) |
-| `report_activities_by_summary` | جست‌وجوی فعالیت‌ها بر اساس کلمه‌ی کلیدی در عنوان | خیر (فقط خواندنی) |
-| `show_activity_detail` | جزئیات کامل یک فعالیت خاص با عنوان | خیر (فقط خواندنی) |
-
-قواعد کلیدی پرامپت سیستمی (`src/llm/instructions.md`):
-
-- همه‌ی تاریخ‌ها فقط شمسی؛ تبدیل به میلادی ممنوع (تبدیل داخلی در بک‌اند انجام می‌شود، نه توسط مدل).
-- قبل از فراخوانی توابعی که داده را تغییر می‌دهند (`edit_activity`، `create_resource`، `manage_task_resource`)، باید پیش‌نمایش تغییرات به کاربر نشان داده و تأیید صریح (`user_confirmed: true`) گرفته شود؛ سه تابع فقط‌خواندنی نیازی به این پیش‌نمایش ندارند و همان لحظه صدا زده می‌شوند. **توجه:** این قاعده فقط در پرامپت اعمال می‌شود، نه در بک‌اند — کد سرویس‌ها مقدار `user_confirmed` را چک نمی‌کند، بنابراین هر مدلی که این دستور را رعایت نکند می‌تواند بدون تأیید واقعی هم تغییر بدهد.
-- خروجی مدل هرگز به شکل خام JSON به کاربر نشان داده نمی‌شود.
-- تاریخچه‌ی مکالمه محدود به ۱۰ پیام آخر است (`get_history(limit=10)`).
-
-خروجی `edit_activity`، `report_activities_by_summary` و `show_activity_detail` به‌صورت یک کارت فعالیت رندر می‌شود (`_show_task_result` در `message_handlers.py`)، نه متن خام. خروجی `create_resource` و `manage_task_resource` کارت فعالیت نیست (فعالیت نیستند)، پس فقط متن پیام (`_show_message_result`) نشان داده می‌شود.
-
-## گزارش زمانی: هر فعالیت جداگانه، نه یک خلاصه
-
-`report_activities_by_time` برخلاف بقیه‌ی توابع، به‌جای ساختن یک فعالیتِ خلاصه، لیستی از فعالیت‌های واقعی را برمی‌گرداند و `_show_task_results` (در `message_handlers.py`) هر کدام را جداگانه — دقیقاً با همان کارت و دکمه‌هایی که جابِ پس‌زمینه می‌فرستد — نمایش می‌دهد؛ اولی با ادیت همان پیامِ در حال پردازش، بقیه با پیام‌های جدید. برخلاف جابِ پس‌زمینه (`get_due_tasks`) که فقط فعالیت‌های سررسیدشده (`next_date <= اکنون`) را می‌بیند، این گزارش کل بازه‌ی زمانی درخواستی را برمی‌گرداند تا کاربر بتواند فعالیت‌های هنوز سررسیدنشده را هم زودتر ببیند و انجام بدهد. فعالیت‌هایی که `notified=True` هستند (قبلاً از طریق جاب یا یک گزارش قبلی نمایش داده شده‌اند) در گزارش دوباره ظاهر نمی‌شوند؛ هر فعالیتی که در گزارش نشان داده می‌شود بلافاصله `notified=True` می‌شود تا نه جاب دوباره بفرستدش، نه گزارش بعدی.
-
-`report_activities_by_summary` هنوز به شکل قبلی کار می‌کند: یک فعالیتِ خلاصه‌ی تکی می‌سازد (`_create_report_activity`) که بلافاصله `completed=True` می‌شود.
-
-## منابع و ردیابی مصرف
-
-هدف: یک فعالیت می‌تواند نشان کند که با هر بار تایید شدنش، مقداری از یک منبع مصرف یا تولید می‌شود (مثلاً «پخت غذا» ۵۰۰ گرم از «برنج» کم می‌کند)، و این تاریخچه حتی برای فعالیت‌های تکرارشونده (که فقط یک ردیف `Task` دارند، نه یک ردیف به‌ازای هر نوبت) دقیق و تاریخ‌دار ثبت شود.
-
-1. **تعریف منبع** (`/resource` → `create_resource`): عنوان، واحد، حداقل موجودی (`min_pantry`)، تگ‌ها، قیمت و ضریب تبدیل واحد (`ResourceParity`) اختیاری‌اند.
-2. **اتصال منبع به فعالیت** (دکمه‌ی 🧺 → `manage_task_resource`): یک ردیف `TaskResource` می‌سازد/به‌روزرسانی می‌کند — فقط **الگو**ست («این فعالیت هر بار تایید بشه، مقدار X از منبع Y»)، نه یک رکورد تاریخچه. یک فعالیت می‌تواند به چند منبع مستقل وصل باشد (مثلاً هم برنج هم روغن).
-3. **تسویه در لحظه‌ی تایید** (`complete_activity` در `task_service.py`): درست قبل از این‌که `next_date`/`rrule` به نوبت بعدی پیش برود، تاریخ نوبتی که همین الان تایید شده (`occurrence_date = task.next_date or task.dtstart`) گرفته می‌شود، و برای هر `TaskResource` روی آن فعالیت یک ردیف `ResourceLog` جدید با همان تاریخ ساخته می‌شود. ✖️ (رد کردن نوبت) هیچ منبعی را تسویه نمی‌کند — فقط ✔️.
-4. **حذف فعالیتی که سابقه دارد**: `confirm_delete_activity_query_handler` قبل از حذف چک می‌کند `task_has_resource_history` (آیا این فعالیت `ResourceLog` دارد؟). اگر بله، به‌جای حذف کامل (که تاریخچه را یتیم/نقض FK می‌کرد)، `skip_future_activities` صدا زده می‌شود: فعالیت `completed=True` می‌شود و دیگر هیچ‌وقت سررسید نمی‌شود، اما خودش و تمام `ResourceLog`هایش در دیتابیس می‌مانند. اگر فعالیت هنوز هیچ تاریخچه‌ای ندارد (فقط `TaskResource` بدون هیچ تاییدی)، حذف عادی انجام می‌شود و آن پیوندهای بلااستفاده هم پاک می‌شوند.
-5. **انتخاب منبع با inline query**: داخل جریان 🧺، به‌جای این‌که کاربر عنوان منبع را تایپ کند تا مدل حدس بزند، یک دکمه‌ی 🔍 (`switch_inline_query_current_chat`) هم نمایش داده می‌شود. با لمسش، `resource_inline_query_handler` (در `query_handlers.py`، ثبت‌شده روی `Application` در `main.py`، نه داخل `main_conversation` — چون `Update.inline_query` مستقل از state مکالمه است) فهرست منابع کاربر را برمی‌گرداند. انتخاب یکی، یک پیام واقعی با متن رمزی `__resource_selected__:<task_id>:<resource_id>` در چت می‌فرستد که `llm_message_handler` قبل از رسیدن به مدل رهگیری‌اش می‌کند و مستقیماً context مکالمه را با عنوان همان منبع seed می‌کند (دقیقاً مثل الگوی ✏️). **پیش‌نیاز:** inline mode باید برای بات از طریق @BotFather (`/setinline`) فعال شده باشد، وگرنه دکمه‌ی 🔍 کار نمی‌کند.
-
-## `/timer` — تایمر پومودورو
-
-برخلاف نسخه‌ی قبلی، `/timer` دیگر دو فعالیتِ پیونددار نمی‌سازد — فقط **یک** فعالیت تکرارشونده که در لحظه‌ی تأیید/رد، خودش را بین فاز کار و استراحت جابه‌جا می‌کند.
-
-`timer_command_handler` در `command_handlers.py` فقط `create_activity({"user_id": ..., "activity_type": "timer"})` را صدا می‌زند؛ بقیه‌ی منطق داخل `task_service.py` است:
-
-1. **تشخیص نوع فعالیت در `create_activity`**: وقتی `activity_type == "timer"` باشد، فعالیت به‌جای گرفتن `rrule`/`summary` از ورودی، این دو را خودش می‌سازد. فاز شروع از روی **گرید نیم‌ساعتیِ ساعت رند** تعیین می‌شود (دقیقه‌ی ۰۰ و ۳۰ = شروع کار، دقیقه‌ی ۲۵ و ۵۵ = شروع استراحت)، نه نسبت به لحظه‌ی اجرای دستور. فاز کار یعنی `rrule = FREQ=MINUTELY;INTERVAL=25` و `summary = "💻 وقت شروع مجدد کاره"`؛ فاز استراحت یعنی `INTERVAL=5` و `"🍹 وقت استراحته"`. کارت همان لحظه (`next_date = dtstart = اکنون`) نمایش داده می‌شود.
-2. **پیشروی در `complete_activity`/`skip_activity`**: این دو تابع با چک‌کردن `rrule` تشخیص می‌دهند که آیا فعالیت یک فاز تایمر است (یعنی `rrule` برابر یکی از همین دو مقدار شناخته‌شده است). اگر بله، پیش از محاسبه‌ی نوبت بعدی، `rrule` و `summary` را به فاز مقابل تغییر می‌دهند و `dtstart` را به لحظه‌ی همین تأیید/رد ریست می‌کنند — سپس دقیقاً همان مسیر عمومیِ `calculate_next_date` که برای همه‌ی فعالیت‌های تکرارشونده استفاده می‌شود، `next_date` را می‌سازد. نتیجه: فاز بعدی واقعاً فقط بعد از گذشت ۲۵ یا ۵ دقیقه‌ی واقعی از لحظه‌ی ✔️/✖️ سررسید می‌شود، نه بلافاصله.
-3. **حذف** (🗑️) فقط همان یک ردیف را پاک می‌کند؛ چون دیگر جفتی در کار نیست، نیازی به حذف آبشاری نیست.
-
-## پیکربندی (`.env`)
-
-| متغیر | کاربرد |
-|---|---|
-| `BOT_TOKEN`, `BOT_URL` | اتصال به Telegram Bot API |
-| `BOT_PERSISTENCE_URL` | مسیر فایل pickle برای persistence داخلی python-telegram-bot |
-| `DATABASE_URL` | اتصال SQLAlchemy به Supabase Postgres |
-| `AI_TOKEN`, `AI_URL`, `AI_MODEL` | اتصال به مدل زبانی (NVIDIA NIM، سازگار با OpenAI SDK) |
-| `TIMEZONE`, `CALENDAR` | منطقه‌ی زمانی (`Asia/Tehran`) و تقویم نمایشی (`jalali`) |
-
-## دیپلوی
-
-- `Dockerfile` یک ایمیج ساده‌ی Python می‌سازد؛ `CMD ["python", "-m", "src.app.bot.main"]` — خود کانتینر اپ هیچ migration ای اجرا نمی‌کند.
-- `docker-compose.yml` فقط یک سرویس دارد: `arabot-dev`، روی ایمیج `arabot:latest`. بدون CI/CD خودکار (Gitea قبلاً استفاده می‌شد، دیگر نه) - دیپلوی دستی است:
-  1. اگر مایگریشن جدیدی هست، دستی روی Supabase اجرا می‌شود (بخش «پشته‌ی فنی» بالا).
-  2. `docker build -t arabot:latest .`
-  3. `docker compose up -d --force-recreate arabot-dev`
-
-## نکات و محدودیت‌های شناخته‌شده
-
-- در `src/llm/instructions.md` به مدل گفته شده که می‌تواند «به یاد بسپارد» (`یادت باشه که...`)، اما تابع متناظرش (`keep_in_mind` در `user_service.py`) در `tools.json` تعریف نشده و به مدل داده نمی‌شود — یعنی این قابلیت فعلاً در عمل کار نمی‌کند.
+Personal project, in active use — not yet built for a paying client, but architected the way I'd build a production automation for one.
